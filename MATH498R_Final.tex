@@ -1,0 +1,2783 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage{url}
+\usepackage{underscore}
+\usepackage{float}
+\usepackage[margin=0.75in]{geometry}
+\usepackage{listings}
+\usepackage{color}
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+\definecolor{gray}{rgb}{0.5,0.5,0.5}
+\definecolor{mauve}{rgb}{0.58,0,0.82}
+\definecolor{red}{rgb}{1,0,0}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\hypersetup{
+    colorlinks,
+    citecolor=black,
+    filecolor=black,
+    linkcolor=black,
+    urlcolor=black
+}
+\usepackage{alltt}
+
+\lstset{language=Python,
+  aboveskip=3mm,
+  belowskip=1mm,
+  showstringspaces=false,
+  columns=flexible,
+  basicstyle={\small\ttfamily},
+  numbers=none,
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue},
+  commentstyle=\color{dkgreen},
+  stringstyle=\color{mauve},
+  breaklines=true,
+  breakatwhitespace=true,
+  tabsize=3,
+  postbreak=\mbox{\textcolor{red}{$\hookrightarrow$}\space}
+}
+\newcommand{\code}[1]{\texttt{#1}}
+
+\title{Time-Series Analysis of Box-Scores}
+\author{Arthur Lin and Jason Lott}
+\date{MATH498R Final Project \\
+Spring 2024 \\
+Prof. Yanir A. Rubinstein}
+
+\begin{document}
+
+\maketitle
+\newpage
+\begin{abstract}
+    The goal of our project was to track personal and team statistics over time during games and seasons and explore the formulas of many advanced statistics. We utilized the NBA's public API to get most of our data as well as many basketball stats reference websites to learn about the most modern advanced stats being used. We used the NBA's play by play data to track how one player's traditional stats accumulated throughout the course of one game. Next, we expanded this to create visualizations of one player's field goal percentage in every game of one regular season and also their cumulative field goal percentage over the same season. We continued to create visualizations of the cumulative graphs of many advanced statistics for one player over the course of one game. Finally, we used a few regression techniques to approximate the formula for true shooting percentage, which has a known formula, and Player Production Average (PPA), which has an unknown formula.
+\end{abstract}
+\newpage
+
+\tableofcontents
+
+\newpage
+
+\section{Code Documentation}
+
+\subsection{Libraries and Endpoints}
+
+%\subsubsection{pandas}
+\begin{lstlisting}
+import pandas as pd
+\end{lstlisting}
+\textit{From:} Pandas Library\\
+\textit{Description:} Imports the pandas library and assigns it the alias ”pd”. Used for data manipulation and analysis.
+
+%\subsubsection{NumPy}
+\begin{lstlisting}
+import numpy as np
+\end{lstlisting}
+\textit{From:} NumPy Library\\
+\textit{Description:} Imports the NumPy library and assigns it the alias "np". Used for numerical computing and provides support for arrays and matrices, along with a collection of mathematical functions to operate on these arrays.
+
+%\subsubsection{Pyplot}
+\begin{lstlisting}
+import matplotlib.pyplot as plt
+\end{lstlisting}
+\textit{From:} Mat-Plot Library\\
+\textit{Description:} Imports the pyplot module from the matplotlib library and assigns it the alias ”plt”. Used for creating plots and visualizations.
+
+%\subsubsection{PlayByPlayV2}
+\begin{lstlisting}
+from nba_api.stats.endpoints import playbyplayv2
+\end{lstlisting}
+\textit{From:} NBA API Stats Endpoints Library\\
+\textit{Description:} Imports the NBA API endpoint PlayByPlayV2 into the program. Used to find play-by-play info for games. (We chose this endpoint over the two other play-by-play endpoints because this one provides information about the players involved in the play.)
+
+%\subsubsection{BoxScoreAdvancedV2}
+\begin{lstlisting}
+from nba_api.stats.endpoints import boxscoreadvancedv2
+\end{lstlisting}
+\textit{From:} NBA API Stats Endpoints Library\\
+\textit{Description:} Imports the NBA API endpoint BoxScoreAdvancedV2 into the program. We used this specifically to find a player's pace, but it provides other advanced stats as well.
+
+%\subsubsection{Players}
+\begin{lstlisting}
+from nba_api.stats.static import players
+\end{lstlisting}
+\textit{From:} NBA API Static Stats Library\\
+\textit{Description:} Imports the NBA API module players, which contains player identifiers like ID and name.
+
+%\subsubsection{LeagueGameFinder}
+\begin{lstlisting}
+from nba_api.stats.endpoints import leaguegamefinder
+\end{lstlisting}
+\textit{From:} NBA API Stats Endpoints Library\\
+\textit{Description:} Imports the NBA API endpoint LeagueGameFinder into the program. Used to find the box scores for games. You can pass in parameters for the season, player, etc.
+
+%\subsubsection{GameRotation}
+\begin{lstlisting}
+from nba_api.stats.endpoints import gamerotation
+\end{lstlisting}
+\textit{From:} NBA API Stats Endpoints Library\\
+\textit{Description:} Imports the NBA API endpoint GameRotation into the program. Used to find the substitutions in a game.
+
+%\subsubsection{BoxScoreAdvancedV3}
+\begin{lstlisting}
+from nba_api.stats.endpoints import boxscoreadvancedv3
+\end{lstlisting}
+\textit{From:} NBA API Stats Endpoints Library\\
+\textit{Description:} Imports the NBA API endpoint boxscoreadvancedv3 into the program. It is used to get the advanced stats for every player who played in a specified game.
+
+%\subsubsection{BoxScoreTraditionalV3}
+\begin{lstlisting}
+from nba_api.stats.endpoints import boxscoretraditionalv3
+\end{lstlisting}
+\textit{From:} NBA API Stats Endpoints Library\\
+\textit{Description:} Imports the NBA API endpoint boxscoretraditionalv3 into the program. It is used to get the traditional stats for every player who played in a specified game.
+
+%\subsubsection{TeamGameLogs}
+\begin{lstlisting}
+from nba_api.stats.endpoints import TeamGameLogs
+\end{lstlisting}
+\textit{From:} NBA API Stats Endpoints Library\\
+\textit{Description:} Imports the NBA API endpoint TeamGameLogs into the program. It is used to gather game IDs for a specified season and/or team.
+
+%\subsubsection{LinearRegression}
+\begin{lstlisting}
+from sklearn.linear_model import LinearRegression
+\end{lstlisting}
+\textit{From:} Sci-Kit Learn Linear Models Library\\
+\textit{Description:} Imports the Sci-Kit Learn model Linear Regression into the program. It is used to approximate the formula for some advanced stats.
+
+%\subsubsection{RandomForestRegressor}
+\begin{lstlisting}
+from sklearn.ensemble import RandomForestRegressor
+\end{lstlisting}
+\textit{From:} Sci-Kit Ensemla Library\\
+\textit{Description:} Imports the Sci-Kit Learn model Random Forest Regressor into the program. It is used to approximate the formula for some advanced stats.
+
+%\subsubsection{Train\textunderscore test\textunderscore split}
+\begin{lstlisting}
+from sklearn.model_selection import train_test_split
+\end{lstlisting}
+\textit{From:} Sci-Kit Learn Model Selection Library\\
+\textit{Description:} Imports the Sci-Kit Learn function train\_test\_split into the program. It is used to randomly split the data into training and testing datasets.
+
+%\subsubsection{HTML, Display}
+\begin{lstlisting}
+from tqdm import tqdm
+\end{lstlisting}
+\textit{From:} TQDM Library\\
+\textit{Description:} Imports the TQDM function tqdm. It is used to create progress bars to track the progress of long data pulls.
+
+%\subsubsection{Time}
+\begin{lstlisting}
+import time
+\end{lstlisting}
+\textit{From:} Python Standard Library\\
+\textit{Description:} Imports the time package into the program. It is used to delay the program in the retry wrapper.
+
+%\subsubsection{Requests}
+\begin{lstlisting}
+import requests
+\end{lstlisting}
+\textit{From:} Python Standard Library\\
+\textit{Description:} Imports the requests package into the program. It is used to handle exceptions in the retry wrapper.
+
+\subsection{Identifying a Player and Game of Interest}
+\begin{lstlisting}
+all_players = players.get_players()
+\end{lstlisting}
+Retrieves names and IDs for all players in the NBA API.
+\begin{lstlisting}
+def get_player_id(player_name):
+\end{lstlisting}
+Defines a function called get\textunderscore player\textunderscore id that takes one parameter, player\textunderscore name.
+\begin{lstlisting}
+    for player in all_players:
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Starts a for loop that iterates over each player in the all@\textunderscore@players list.
+\end{lstlisting}
+\begin{lstlisting}
+        if player['full_name'].lower() == player_name.lower():
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+        Checks for a player name in the all@\textunderscore@players list that matches the user input.
+\end{lstlisting}
+\begin{lstlisting}
+            return player['id']
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+            Returns the ID of the player if a name match is found.
+\end{lstlisting}
+\begin{lstlisting}
+        return None
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+        Returns None if the user entered a name that isn't in the list.
+\end{lstlisting}
+\begin{lstlisting}
+player_name = input("Enter a player's full name: ")
+\end{lstlisting}
+Prompts the user to enter a player's full name and assigns the input to a variable, player\textunderscore name.
+\begin{lstlisting}
+last_name = player_name.split(' ')[1]
+\end{lstlisting}
+Assigns the second value of the input to a variable, last\textunderscore name.
+\begin{lstlisting}
+player_id = get_player_id(player_name)
+\end{lstlisting}
+Assigns the player ID returned by get\textunderscore player\textunderscore id to a variable, player\textunderscore id.
+\begin{lstlisting}
+if player_id:
+\end{lstlisting}
+Checks if a player ID was found.
+\begin{lstlisting}
+    print(f"The player ID for {player_name} is {player_id}.")
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Prints a formatted string informing the user of the ID for the player they input.
+\end{lstlisting}
+\begin{lstlisting}
+else:
+\end{lstlisting}
+If the previous condition was not met (i.e., a player ID was not found), executes the following line of code.
+\begin{lstlisting}
+    print(f"Player '{player_name}' not found.")
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Prints a formatted string informing the user that the player they provided was not found.
+\end{lstlisting}
+\begin{lstlisting}
+season = input('Enter the years a season spans (e.g. 2023-24): ')
+\end{lstlisting}
+Prompts the user to enter a season of interest and assigns it to a variable, season.
+\begin{lstlisting}
+gamefinder = leaguegamefinder.LeagueGameFinder(player_id_nullable = player_id, season_nullable= season)
+\end{lstlisting}
+Uses the LeagueGameFinder NBA API endpoint with the parameters stored in the variables player\textunderscore id and season to retrieve a player's box scores for each game in the given season.
+\begin{lstlisting}
+games = gamefinder.get_data_frames()[0]
+\end{lstlisting}
+Returns the box score data in the variable gamefinder as a list of pandas DataFrames and assigns the list to a variable, games.
+\begin{lstlisting}
+pd.set_option('display.max_columns',250)
+\end{lstlisting}
+Sets the maximum number of columns to display in pandas DataFrames to 250.
+\begin{lstlisting}
+pd.set_option('display.max_colwidth', None)
+\end{lstlisting}
+Sets the maximum column width in pandas DataFrames to None. Ensures content in the DataFrame is not truncated.
+\begin{lstlisting}
+def get_game_id(game_date):
+\end{lstlisting}
+Defines a function called get\textunderscore game\textunderscore id that takes one parameter, game\textunderscore date.
+\begin{lstlisting}
+    game = games[games['GAME_DATE'] == game_date]
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Finds the row in the games DataFrame that has a 'GAME@\textunderscore@DATE' column value equal to the
+    user input date. The row is assigned to a new variable, game.
+\end{lstlisting}
+\begin{lstlisting}
+    if len(game) > 0:
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Executes the following code if a game was found.
+\end{lstlisting}
+\begin{lstlisting}
+        return game['GAME_ID'].iloc[0]
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+        Returns the 'GAME@\textunderscore@ID' column value for the chosen date's game.
+\end{lstlisting}
+\begin{lstlisting}
+    else:
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Executes the following code if a game was not found for the chosen date.
+\end{lstlisting}
+\begin{lstlisting}
+        return "No game found for the given date."
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+        Returns a string informing the user that their date input did not return a game.
+\end{lstlisting}
+\begin{lstlisting}
+game_date = input("Enter the game date (YYYY-MM-DD): ")
+\end{lstlisting}
+Prompts the user to enter the date of a game they want to analyze. The input is assigned to a variable, game\textunderscore date.
+\begin{lstlisting}
+game_id = get_game_id(game_date)
+\end{lstlisting}
+Calls the get\textunderscore game\textunderscore id function with the new variable, game\textunderscore date as the parameter. The resulting game ID is assigned to the variable, game\textunderscore id.
+\begin{lstlisting}
+play_by_play = playbyplayv2.PlayByPlayV2(game_id=game_id)
+\end{lstlisting}
+Instantiates an object of a class named PlayByPlayV2 from the playbyplayv2 endpoint. Finds the play-by-play for the game with the given game ID and stores it in a variable, play\textunderscore by\textunderscore play.
+\begin{lstlisting}
+pd.set_option('display.max_columns',250)
+\end{lstlisting}
+Sets the maximum number of columns to display in pandas DataFrames to 250.
+\begin{lstlisting}
+pd.set_option('display.max_colwidth', None)
+\end{lstlisting}
+Sets the maximum column width in pandas DataFrames to None. Ensures content in the DataFrame is not truncated.
+\begin{lstlisting}
+pbp_df = play_by_play.get_data_frames()[0]
+\end{lstlisting}
+Retrieves the play-by-play data in DataFrame format and assigns the DataFrame to a variable, pbp\textunderscore df.
+\begin{lstlisting}
+cleaned_pbp_df = pbp_df[['GAME_ID', 'EVENTMSGTYPE', 'PERIOD', 'PCTIMESTRING', 'HOMEDESCRIPTION', 'VISITORDESCRIPTION', 'SCORE', 'PLAYER1_ID', 'PLAYER1_NAME', 'PLAYER1_TEAM_ABBREVIATION', 'PLAYER2_ID', 'PLAYER2_NAME', 'PLAYER2_TEAM_ABBREVIATION']]
+\end{lstlisting}
+Indexes pbp\textunderscore df to create a new DataFrame, cleaned\textunderscore pbp \textunderscore df that contains only the columns we need.
+\begin{lstlisting}
+pd.set_option('display.max_rows', None)
+\end{lstlisting}
+Displays all of the rows in a pandas DataFrame.
+\begin{lstlisting}
+home_boolean = True
+\end{lstlisting}
+Creates a boolean variable, home\textunderscore boolean, and assigns it a value of True.
+\begin{lstlisting}
+game = games[games['GAME_DATE'] == game_date]
+\end{lstlisting}
+Filter the games data frame to include only the game on the date the user inputted. Store the resulting data frame in variable game.
+\begin{lstlisting}
+if game['MATCHUP'].str.contains('vs.').any():
+\end{lstlisting}
+Executes the following code if the 'MATCHUP' column value of the game variable contains a substring of 'vs.'.
+\begin{lstlisting}
+    column = 'HOMEDESCRIPTION'
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Assigns the string value 'HOMEDESCRIPTION' to the variable, column.
+\end{lstlisting}
+\begin{lstlisting}
+else:
+\end{lstlisting}
+Executes the following code if the 'MATCHUP' column value of the game variable does not contain a substring of 'vs.'.
+\begin{lstlisting}
+    home_boolean = False
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Assigns a value of False to the home@\textunderscore@boolean variable.
+\end{lstlisting}
+\begin{lstlisting}
+    column = 'VISITORDESCRIPTION'
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Assigns the string value 'VISITORDESCRIPTION' to the variable, column.
+\end{lstlisting}
+\begin{lstlisting}
+column
+\end{lstlisting}
+Prints the value of column.
+\begin{lstlisting}
+def convert_to_seconds(row):
+\end{lstlisting}
+Defines a function called convert\textunderscore to\textunderscore seconds that takes one parameter, row.
+\begin{lstlisting}
+    period = row['PERIOD']
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Assigns a row's 'PERIOD' column value to the variable, period.
+\end{lstlisting}
+\begin{lstlisting}
+    pctimestring = row['PCTIMESTRING']
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Assigns a row's 'PCTIMESTRING' column value to the variable, pctimestring.
+\end{lstlisting}
+\begin{lstlisting}
+    seconds_elapsed = (int(period) - 1) * 12 * 60 + (12 * 60 - int(pctimestring.split(':')[0]) * 60) - int(pctimestring.split(':')[1])
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Calculates the seconds elapsed in the game at a particular row by manipulating the string values in period
+    and pctimestring.
+\end{lstlisting}
+\begin{lstlisting}
+    return seconds_elapsed
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Returns the calculation.
+\end{lstlisting}
+\begin{lstlisting}
+cleaned_pbp_df['SECONDS_ELAPSED'] = cleaned_pbp_df.apply(convert_to_seconds, axis=1)
+\end{lstlisting}
+Applies the function convert\textunderscore to\textunderscore seconds to cleaned\textunderscore pbp\textunderscore df to create a new column, 'SECONDS\textunderscore ELAPSED'.
+\begin{lstlisting}
+def parse_input(input_str):
+\end{lstlisting}
+Defines a function called parse\textunderscore input that takes one parameter, input\textunderscore str.
+\begin{lstlisting}
+    if not input_str:
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    If the variable input@\textunderscore@str is empty, execute the following code.
+\end{lstlisting}
+\begin{lstlisting}
+        return None, None
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+        Returns None values for both the quarter and time left.
+\end{lstlisting}
+\begin{lstlisting}
+    period, time_left = input_str.split(',')
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Splits the user input into substrings based on a comma delimiter, and assigns the two substrings to the
+    variables period and time@\textunderscore@left. 
+\end{lstlisting}
+\begin{lstlisting}
+    return int(period), time_left.strip()
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Returns a tuple with two values, the period and time left. The strip method removes any leading and
+    trailing white space.
+\end{lstlisting}
+\begin{lstlisting}
+def filter_time_frame(df, start_period=None, start_time=None, end_period=None, end_time=None):
+\end{lstlisting}
+Defines a function, filter\textunderscore time\textunderscore frame, with five parameters. All parameters except df will default to None if they are not provided.
+\begin{lstlisting}
+    if start_period is not None and start_time is not None:
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    If the variables start@\textunderscore@period and start@\textunderscore@time are not None, execute the following code.
+\end{lstlisting}
+\begin{lstlisting}
+        start_seconds = (start_period - 1) * 12 * 60 + (12 * 60 - int(start_time.split(':')[0]) * 60) - int(start_time.split(':')[1])
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+        Calculates the starting time in seconds by manipulating the user-provided string values in start@\textunderscore@period
+        and start@\textunderscore@time. Assigns the value to a variable, start@\textunderscore@seconds
+\end{lstlisting}
+\begin{lstlisting}
+        df = df[df['SECONDS_ELAPSED'] >= start_seconds]
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+        Indexes the DataFrame stored in the variable df for rows where the SECONDS@\textunderscore@ELAPSED column value
+        is greater than or equal to the value stored in start@\textunderscore@seconds.
+\end{lstlisting}
+\begin{lstlisting}
+    if end_period is not None and end_time is not None:
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    If the variables end@\textunderscore@period and end@\textunderscore@time are not None, execute the following code.
+\end{lstlisting}
+\begin{lstlisting}
+        end_seconds = (end_period - 1) * 12 * 60 + (12 * 60 - int(end_time.split(':')[0]) * 60) - int(end_time.split(':')[1])
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+        Calculates the ending time in seconds by manipulating the user-provided string values in end@\textunderscore@period
+        and end@\textunderscore@time. Assigns the value to a variable, end@\textunderscore@seconds
+\end{lstlisting}
+\begin{lstlisting}
+        df = df[df['SECONDS_ELAPSED'] <= end_seconds]
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+        Indexes the DataFrame stored in the variable df for rows where the SECONDS@\textunderscore@ELAPSED column value
+        is less than or equal to the value stored in end@\textunderscore@seconds.
+\end{lstlisting}
+\begin{lstlisting}
+    return df
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Returns the filtered DataFrame containing the play-by-play for a specific time frame of the game.
+\end{lstlisting}
+\begin{lstlisting}
+time_frame_start = input("Enter a starting period and time left (e.g. 1, 11:45), or press enter to start at the beginning of the game: ")
+\end{lstlisting}
+Prompts the user to enter a starting period and time in a specific format, or to skip by pressing enter. The input is assigned to a variable, time\textunderscore frame\textunderscore start.
+\begin{lstlisting}
+time_frame_end = input("Enter the ending period and time left, or press enter to end at the end of the game: ")
+\end{lstlisting}
+Prompts the user to enter an ending period and time in a specific format, or to skip by pressing enter. The input is assigned to a variable, time\textunderscore frame\textunderscore end.
+\begin{lstlisting}
+start_period, start_time = parse_input(time_frame_start)
+\end{lstlisting}
+Calls the parse\textunderscore input function on time\textunderscore frame\textunderscore start and assigns the two substrings to the variables start\textunderscore period and start \textunderscore time. 
+\begin{lstlisting}
+end_period, end_time = parse_input(time_frame_end)
+\end{lstlisting}
+Calls the parse\textunderscore input function on time\textunderscore frame\textunderscore end and assigns the two substrings to the variables end\textunderscore period and end \textunderscore time. 
+\begin{lstlisting}
+cleaned_pbp_df = filter_time_frame(cleaned_pbp_df, start_period, start_time, end_period, end_time)
+\end{lstlisting}
+Calls the function, filter\textunderscore time\textunderscore frame to filter cleaned\textunderscore pbp \textunderscore df to the given time frame.
+\begin{lstlisting}
+cleaned_pbp_df
+\end{lstlisting}
+Prints the updated DataFrame stored in cleaned\textunderscore pbp\textunderscore df.
+
+\subsection{Aggregating Traditional and Advanced Stats Into One DataFrame}
+
+\begin{lstlisting}
+cleaned_pbp_df['SCORE'].iloc[0] = '0 - 0'
+\end{lstlisting}
+Sets the first value of the SCORE column in cleaned\textunderscore pbp\textunderscore df to '0 - 0'.
+\begin{lstlisting}
+cleaned_pbp_df['SCORE'].fillna(method='ffill', inplace=True)
+\end{lstlisting}
+Fills missing values of the SCORE column of cleaned\textunderscore pbp\textunderscore df using forward filling. This replaces NaN values with the last non-null value in the column.
+\begin{lstlisting}
+cleaned_pbp_df['GAME_PTS'] = cleaned_pbp_df['SCORE'].apply(lambda x: sum(map(int, x.split(' - '))))
+\end{lstlisting}
+Uses a lambda function to calculate the total points in the game by splitting strings in the SCORE column. Assigns values to a new column of cleaned\textunderscore pbp\textunderscore df called GAME\textunderscore PTS.
+\begin{lstlisting}
+cleaned_pbp_df['GAME_FGM'] = (cleaned_pbp_df['EVENTMSGTYPE'] == 1).cumsum()
+\end{lstlisting}
+Creates a column, GAME\textunderscore FGM in cleaned\textunderscore pbp\textunderscore df that is filled with the cumulative sum of rows with an EVENTMSGTYPE column value of 1. In the NBA API, a made field goal is denoted with an EVENTMSGTYPE value of 1.
+\begin{lstlisting}
+cleaned_pbp_df['GAME_FTM'] = ((cleaned_pbp_df['EVENTMSGTYPE'] == 3) & (~cleaned_pbp_df['HOMEDESCRIPTION'].str.contains('MISS', na=False)) & (~cleaned_pbp_df['VISITORDESCRIPTION'].str.contains('MISS', na=False))).cumsum()
+\end{lstlisting}
+Creates a column, GAME\textunderscore FTM in cleaned\textunderscore pbp\textunderscore df that is filled with the cumulative sum of rows that have an EVENTMSGTYPE column value of 3, and do not contain the substring 'MISS' in both the HOMEDESCRIPTION and VISITORDESCRIPTION columns. In the NBA API, a free throw is denoted with an EVENTMSGTYPE value of 3.
+\begin{lstlisting}
+cleaned_pbp_df['GAME_FGA'] = (cleaned_pbp_df['EVENTMSGTYPE'].isin([1, 2])).cumsum()
+\end{lstlisting}
+Creates a column, GAME\textunderscore FGA in cleaned\textunderscore pbp\textunderscore df that is filled with the cumulative sum of rows with an EVENTMSGTYPE column value of 1 or 2. In the NBA API, a made field goal is denoted with an EVENTMSGTYPE value of 1, and a missed field goal is denoted with a value of 2.
+\begin{lstlisting}
+cleaned_pbp_df['GAME_FTA'] = (cleaned_pbp_df['EVENTMSGTYPE'] == 3).cumsum()
+\end{lstlisting}
+Creates a column, GAME\textunderscore FTA in cleaned\textunderscore pbp\textunderscore df that is filled with the cumulative sum of rows with an EVENTMSGTYPE column value of 3. In the NBA API, a free throw is denoted with an EVENTMSGTYPE value of 3.
+\begin{lstlisting}
+cleaned_pbp_df['GAME_REB'] = (cleaned_pbp_df['EVENTMSGTYPE'] == 4).cumsum()
+\end{lstlisting}
+Creates a column, GAME\textunderscore REB in cleaned\textunderscore pbp\textunderscore df that is filled with the cumulative sum of rows with an EVENTMSGTYPE column value of 4. In the NBA API, a rebound is denoted with an EVENTMSGTYPE value of 4.
+\begin{lstlisting}
+cleaned_pbp_df['GAME_AST'] = ((cleaned_pbp_df['HOMEDESCRIPTION'].str.contains('AST', na=False)) | (cleaned_pbp_df['VISITORDESCRIPTION'].str.contains('AST', na=False))).cumsum()
+\end{lstlisting}
+Creates a column, GAME\textunderscore AST in cleaned\textunderscore pbp\textunderscore df that is filled with the cumulative sum of rows in the HOMEDESCRIPTION and VISITORDESCRIPTION columns that contain the substring 'AST'. If a particular column value is missing, the na = False parameter will ensure that it is treated as not containing the substring.
+\begin{lstlisting}
+cleaned_pbp_df['GAME_STL'] = ((cleaned_pbp_df['HOMEDESCRIPTION'].str.contains('STL', na=False)) | (cleaned_pbp_df['VISITORDESCRIPTION'].str.contains('STL', na=False))).cumsum()
+\end{lstlisting}
+Creates a column, GAME\textunderscore STL in cleaned\textunderscore pbp\textunderscore df that is filled with the cumulative sum of rows in the HOMEDESCRIPTION and VISITORDESCRIPTION columns that contain the substring 'STL'.
+\begin{lstlisting}
+cleaned_pbp_df['GAME_BLK'] = ((cleaned_pbp_df['HOMEDESCRIPTION'].str.contains('BLK', na=False)) | (cleaned_pbp_df['VISITORDESCRIPTION'].str.contains('BLK', na=False))).cumsum()
+\end{lstlisting}
+Creates a column, GAME\textunderscore STL in cleaned\textunderscore pbp\textunderscore df that is filled with the cumulative sum of rows in the HOMEDESCRIPTION and VISITORDESCRIPTION columns that contain the substring 'BLK'.
+\begin{lstlisting}
+cleaned_pbp_df['GAME_PF'] = (cleaned_pbp_df['EVENTMSGTYPE'] == 6).cumsum()
+\end{lstlisting}
+Creates a column, GAME\textunderscore PF in cleaned\textunderscore pbp\textunderscore df that is filled with the cumulative sum of rows with an EVENTMSGTYPE column value of 6. In the NBA API, a personal foul is denoted with an EVENTMSGTYPE value of 6.
+\begin{lstlisting}
+cleaned_pbp_df['GAME_TO'] = (cleaned_pbp_df['EVENTMSGTYPE'] == 5).cumsum()
+\end{lstlisting}
+Creates a column, GAME\textunderscore TO in cleaned\textunderscore pbp\textunderscore df that is filled with the cumulative sum of rows with an EVENTMSGTYPE column value of 5. In the NBA API, a turnover is denoted with an EVENTMSGTYPE value of 5.
+\begin{lstlisting}
+cleaned_pbp_df['TEAM_AST'] = (cleaned_pbp_df[column].str.contains('AST', na=False)).cumsum()
+\end{lstlisting}
+Creates a column, TEAM\textunderscore AST in cleaned\textunderscore pbp\textunderscore df that is filled with the cumulative sum of rows in the column stored in the variable, column, that contains the substring 'AST'.
+\begin{lstlisting}
+team_abbreviation = games.loc[0, 'TEAM_ABBREVIATION']
+\end{lstlisting}
+Indexes the games DataFrame to find the first value of the TEAM\textunderscore ABBREVIATION column and assigns the value to a variable, team\textunderscore abbreviation.
+\begin{lstlisting}
+team_scoring = cleaned_pbp_df[(cleaned_pbp_df['PLAYER1_TEAM_ABBREVIATION'] == team_abbreviation) & (cleaned_pbp_df['EVENTMSGTYPE'] == 1)]
+\end{lstlisting}
+Creates a DataFrame, team\textunderscore scoring, by indexing cleaned\textunderscore pbp\textunderscore df for rows where PLAYER1\textunderscore TEAM\textunderscore ABBREVIATION is equal to the team\textunderscore abbreviation variable and the EVENTMSGTYPE column value is 1.
+\begin{lstlisting}
+cleaned_pbp_df['TEAM_FGM'] = team_scoring['EVENTMSGTYPE'].cumsum()
+\end{lstlisting}
+Creates a column, TEAM\textunderscore FGM in cleaned\textunderscore pbp\textunderscore df that is filled with the cumulative sum of rows in team\textunderscore scoring.
+\begin{lstlisting}
+player_pbp = cleaned_pbp_df[cleaned_pbp_df['PLAYER1_ID'] == player_id]
+\end{lstlisting}
+Creates a DataFrame, player\textunderscore pbp by indexing cleaned\textunderscore pbp\textunderscore df for rows where the PLAYER1\textunderscore ID column has a value equal to the player\textunderscore id variable.
+\begin{lstlisting}
+substitution_events = cleaned_pbp_df[(cleaned_pbp_df['EVENTMSGTYPE'] == 8) & (cleaned_pbp_df[column].str.contains(last_name))]
+\end{lstlisting}
+Creates a DataFrame, substitution\textunderscore events, by indexing cleaned\textunderscore pbp\textunderscore df for rows where the EVENTMSGTYPE column value is 8 and the column stored in the variable, column, contains the chosen player's last name as a substring. In the NBA API, a substitution is denoted with an EVENTMSGTYPE value of 8.
+\begin{lstlisting}
+quarter_end = cleaned_pbp_df[cleaned_pbp_df['EVENTMSGTYPE'] == 13]
+\end{lstlisting}
+Creates a DataFrame, quarter\textunderscore end by indexing cleaned\textunderscore pbp\textunderscore df for rows where the EVENTMSGTYPE column value is 13. In the NBA API, ends of quarters are denoted with an EVENTMSGTYPE value of 13.
+\begin{lstlisting}
+player_pbp = pd.concat([player_pbp, substitution_events, quarter_end])
+\end{lstlisting}
+Concatenates the DataFrames substitution\textunderscore events and quarter \textunderscore end to player\textunderscore pbp, and assign the resulting DataFrame to the variable player\textunderscore pbp.
+\begin{lstlisting}
+player_pbp.sort_index(inplace=True)
+\end{lstlisting}
+Sort the DataFrame index to ensure events appear sequentially by game time.
+\begin{lstlisting}
+second_pbp = cleaned_pbp_df[cleaned_pbp_df['PLAYER2_ID'] == player_id]
+\end{lstlisting}
+Creates a DataFrame, second\textunderscore pbp by indexing cleaned\textunderscore pbp\textunderscore df for rows where the PLAYER2\textunderscore ID column value is equal to the player\textunderscore id variable.
+\begin{lstlisting}
+assists = second_pbp[second_pbp[column].str.contains(rf'{last_name} \d+ AST').fillna(False)]
+\end{lstlisting}
+Creates a DataFrame, assists, by indexing second\textunderscore pbp for rows containing a specific string pattern of the player's last name, followed by one or more digits, followed by the string 'AST'.
+\begin{lstlisting}
+player_pbp = pd.concat([player_pbp, assists], axis=0)
+\end{lstlisting}
+Concatenates the DataFrame assists with player\textunderscore pbp along the rows and assigns the DataFrame to player\textunderscore pbp.
+\begin{lstlisting}
+steals = second_pbp[second_pbp[column].str.contains(rf'\d+ STL').fillna(False)]
+\end{lstlisting}
+Creates a DataFrame, steals, by indexing second\textunderscore pbp for rows containing a specific string pattern of one or more digits, followed by the string 'STL'.
+\begin{lstlisting}
+player_pbp = pd.concat([player_pbp, steals], axis=0)
+\end{lstlisting}
+Concatenates the DataFrame steals with player\textunderscore pbp along the rows and assigns the DataFrame to player\textunderscore pbp.
+\begin{lstlisting}
+blocks = second_pbp[second_pbp[column].str.contains(rf'{last_name} \d+ BLK').fillna(False)]
+\end{lstlisting}
+Creates a DataFrame, blocks, by indexing second\textunderscore pbp for rows containing a specific string pattern of the player's last name, followed by one or more digits, followed by the string 'BLK'.
+\begin{lstlisting}
+player_pbp = pd.concat([player_pbp, blocks], axis=0)
+\end{lstlisting}
+Concatenates the DataFrame blocks with player\textunderscore pbp along the rows and assigns the DataFrame to player\textunderscore pbp.
+\begin{lstlisting}
+player_pbp.drop_duplicates(inplace = True)
+\end{lstlisting}
+Removes duplicate rows from player\textunderscore pbp and applies changes directly to player\textunderscore pbp, rather than returning a new DataFrame.
+\begin{lstlisting}
+player_pbp.sort_index()
+\end{lstlisting}
+Sorts the index of player\textunderscore pbp.
+\begin{lstlisting}
+player_pbp['PTS'] = player_pbp.loc[player_pbp['PLAYER1_ID'] == player_id, column].str.extract(r'(\d+) PTS')
+\end{lstlisting}
+Creates a new column, PTS, in player\textunderscore pbp by indexing player\textunderscore pbp for rows where the PLAYER1\textunderscore ID value equals the variable, player\textunderscore id. Then, finds a string pattern of one or more digits followed by the string 'PTS'. The parentheses extract the digits from the string, which become the values for the PTS column.
+\begin{lstlisting}
+player_pbp['AST'] = player_pbp.loc[player_pbp['PLAYER2_ID'] == player_id, column].str.extract(r'(\d+) AST')
+\end{lstlisting}
+Creates a new column, AST, in player\textunderscore pbp by indexing player\textunderscore pbp for rows where the PLAYER2\textunderscore ID value equals the variable, player\textunderscore id. Then, finds a string pattern of one or more digits followed by the string 'AST'. The parentheses extract the digits from the string, which become the values for the AST column.
+\begin{lstlisting}
+player_pbp['OREB'] = player_pbp[column].str.extract(r'REBOUND \(Off:(\d+)')
+\end{lstlisting}
+Creates a new column, OREB, in player\textunderscore pbp by finding a string pattern of a string 'REBOUND' followed by the string '(Off:' and one or more digits. The parentheses extract the digits from the string, which become the values for the OREB column.
+\begin{lstlisting}
+player_pbp['DREB'] = player_pbp[column].str.extract(r'REBOUND \(Off:\d+ Def:(\d+)')
+\end{lstlisting}
+Creates a new column, DREB, in player\textunderscore pbp by finding a string pattern of a string 'REBOUND' followed by the string '(Off:\d+ Def:' and one or more digits. The parentheses extract the digits from the string, which become the values for the DREB column.
+\begin{lstlisting}
+player_pbp['REB'] = pd.to_numeric(player_pbp['OREB']) + pd.to_numeric(player_pbp['DREB'])
+\end{lstlisting}
+Creates a new column, REB, in player\textunderscore pbp by converting the string values in the OREB and DREB columns to numeric and summing.
+\begin{lstlisting}
+player_pbp['STL'] = player_pbp.loc[player_pbp['PLAYER2_ID'] == player_id, column].str.extract(r'(\d+) STL')
+\end{lstlisting}
+Creates a new column, STL, in player\textunderscore pbp by indexing player\textunderscore pbp for rows where the PLAYER2\textunderscore ID value equals the variable, player\textunderscore id. Then, finds a string pattern of one or more digits followed by the string 'STL'. The parentheses extract the digits from the string, which become the values for the STL column.
+\begin{lstlisting}
+player_pbp['BLK'] = player_pbp.loc[player_pbp['PLAYER2_ID'] == player_id, column].str.extract(r'(\d+) BLK')
+\end{lstlisting}
+Creates a new column, BLK, in player\textunderscore pbp by indexing player\textunderscore pbp for rows where the PLAYER2\textunderscore ID value equals the variable, player\textunderscore id. Then, finds a string pattern of one or more digits followed by the string 'BLK'. The parentheses extract the digits from the string, which become the values for the BLK column.
+\begin{lstlisting}
+player_pbp['TO'] = player_pbp[column].str.extract(r'Turnover \(P(\d+)\.T\d+\)')
+\end{lstlisting}
+Creates a new column, TO, in player\textunderscore pbp by finding a string pattern of a string 'Turnover' followed by the string 'P' and one or more digits, followed by a '.' and finally a string value 'T' followed by one or more digits. The parentheses extract the digits after the substring 'P', which become the values for the TO column.
+\begin{lstlisting}
+player_pbp['PF'] = ((player_pbp['EVENTMSGTYPE'] == 6) & (player_pbp['PLAYER1_ID'] == player_id)).cumsum()
+\end{lstlisting}
+Creates a column, PF in player\textunderscore pbp that is filled with the cumulative sum of rows that have an EVENTMSGTYPE column value of 6 and a PLAYER1\textunderscore ID column value that equals the variable, player\textunderscore id. In the NBA API, a foul is denoted with an EVENTMSGTYPE value of 6.
+\begin{lstlisting}
+player_pbp.sort_index(inplace = True)
+\end{lstlisting}
+Sort the DataFrame index to ensure events appear sequentially by game time.
+\begin{lstlisting}
+player_pbp.drop_duplicates(inplace=True)
+\end{lstlisting}
+Removes duplicate rows from player\textunderscore pbp and applies changes directly to player\textunderscore pbp, rather than returning a new DataFrame.
+\begin{lstlisting}
+player_pbp
+\end{lstlisting}
+Prints the updated player\textunderscore pbp DataFrame.
+\begin{lstlisting}
+player_fg = cleaned_pbp_df[(cleaned_pbp_df['EVENTMSGTYPE'].isin([1, 2])) & (cleaned_pbp_df['PLAYER1_ID'] == player_id)]
+\end{lstlisting}
+Creates a DataFrame, player\textunderscore fg, by indexing cleaned\textunderscore pbp\textunderscore df for rows where the EVENTMSGTYPE column value is 1 or 2 and the PLAYER1\textunderscore ID column value equals the variable, player\textunderscore id. In the NBA API, a made field goal is denoted with an EVENTMSGTYPE value of 1, and missed field goals are denoted with a value of 2.
+\begin{lstlisting}
+player_fg["FGM"] = (player_fg["EVENTMSGTYPE"] == 1).cumsum()
+\end{lstlisting}
+Creates a new column, FGM, in player\textunderscore fg by taking the cumulative sum of rows with a value of 1 in the EVENTMSGTYPE column.
+\begin{lstlisting}
+player_fg["FGA"] = player_fg.reset_index(drop = True).index + 1
+\end{lstlisting}
+Creates a new column, FGA, in player\textunderscore fg by resetting the index, dropping the current index (as opposed to keeping it as a new column), and adding one to the index values.
+\begin{lstlisting}
+player_fg["FG%"] = (player_fg["FGM"] / player_fg["FGA"] * 100).round(2)
+\end{lstlisting}
+Creates a new column, FG\%, in player\textunderscore fg by dividing the FGM column values by the corresponding FGA values, multiplying by 100, and rounding to two decimal places.
+\begin{lstlisting}
+player_pbp = pd.concat([player_pbp, player_fg], axis=0)
+\end{lstlisting}
+Concatenates the DataFrame player\textunderscore fg with player\textunderscore pbp along the rows and assigns the DataFrame to player\textunderscore pbp.
+\begin{lstlisting}
+player_pbp.update(player_fg[['FGM', 'FGA', 'FG%']])
+\end{lstlisting}
+Updates the player\textunderscore pbp DataFrame with values from the FGM, FGA, and FG\% columns of the player\textunderscore fg DataFrame.
+\begin{lstlisting}
+mask = player_fg[column].str.contains('3PT')
+\end{lstlisting}
+Creates a variable, mask, that filters the column of player\textunderscore fg stored in the variable column for rows that contain the substring '3PT'.
+\begin{lstlisting}
+player_3pt_attempts = player_fg[mask]
+\end{lstlisting}
+Filters player\textunderscore fg using the mask variable and assign the result to a new DataFrame, player\textunderscore 3pt\textunderscore attempts.
+\begin{lstlisting}
+player_3pt_attempts["3PTM"] = (player_3pt_attempts["EVENTMSGTYPE"] == 1).cumsum()
+\end{lstlisting}
+Creates a new column, 3PTM, in player\textunderscore 3pt\textunderscore attempts by taking the cumulative sum of rows with an EVENTMSGTYPE column value of 1 (made field goals).
+\begin{lstlisting}
+player_3pt_attempts["3PTA"] = player_3pt_attempts.reset_index(drop = True).index + 1
+\end{lstlisting}
+Creates a new column, 3PTA, in player\textunderscore 3pt\textunderscore attempts by resetting and dropping the index, and adding one to it.
+\begin{lstlisting}
+player_3pt_attempts["3PT%"] = (player_3pt_attempts["3PTM"] / player_3pt_attempts["3PTA"] * 100).round(2)
+\end{lstlisting}
+Creates a new column, 3PT\%, in player\textunderscore 3pt\textunderscore attempts by dividing the 3PTM column values by the corresponding 3PTA values, multiplying by 100, and rounding to two decimal places.
+\begin{lstlisting}
+player_pbp = pd.concat([player_pbp, player_3pt_attempts], axis=0)
+\end{lstlisting}
+Concatenates the DataFrame player\textunderscore 3pt\textunderscore attempts with player\textunderscore pbp along the rows and assigns the DataFrame to player\textunderscore pbp.
+\begin{lstlisting}
+player_pbp.update(player_3pt_attempts[['3PTM', '3PTA', '3PT%']])
+\end{lstlisting}
+Updates the player\textunderscore pbp DataFrame with values from the 3PTM, 3PTA, and 3PT\% columns of the\\
+player\textunderscore 3pt\textunderscore attempts DataFrame.
+\begin{lstlisting}
+player_free_throws = cleaned_pbp_df[(cleaned_pbp_df['EVENTMSGTYPE'] == 3) & (cleaned_pbp_df['PLAYER1_ID'] == player_id)]
+\end{lstlisting}
+Creates a DataFrame, player\textunderscore free\textunderscore throws, by indexing cleaned\textunderscore pbp\textunderscore df for rows where the EVENTMSGTYPE column value is 3 and the PLAYER1\textunderscore ID column value equals the variable, player\textunderscore id. In the NBA API, a free throw is denoted with an EVENTMSGTYPE value of 3.
+\begin{lstlisting}
+total_made = 0
+\end{lstlisting}
+Creates a variable, total\textunderscore made and assigns it a value of 0.
+\begin{lstlisting}
+total_attempts = 0
+\end{lstlisting}
+Creates a variable, total\textunderscore attempts and assigns it a value of 0.
+\begin{lstlisting}
+ft_made = []
+\end{lstlisting}
+Creates a variable, ft\textunderscore made and assigns it an empty list.
+\begin{lstlisting}
+ft_attempted = []
+\end{lstlisting}
+Creates a variable, ft\textunderscore attempted and assigns it an empty list.
+\begin{lstlisting}
+for index, row in player_free_throws.iterrows():
+\end{lstlisting}
+Begins the iteration of each row in player\textunderscore free\textunderscore throws.
+\begin{lstlisting}
+    if 'MISS' not in row[column]:
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Checks if the free throw was made.
+\end{lstlisting}
+\begin{lstlisting}
+        total_made += 1
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+        If the condition is True, add one to total@\textunderscore@made and assign the new value to total@\textunderscore@made.
+\end{lstlisting}
+\begin{lstlisting}
+    ft_made.append(total_made)
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Append each total@\textunderscore@made value to the list, ft@\textunderscore@made.
+\end{lstlisting}
+\begin{lstlisting}
+    total_attempts += 1
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Add one to total@\textunderscore@attempts and assign the new value to total@\textunderscore@attempts.
+\end{lstlisting}
+\begin{lstlisting}
+    ft_attempted.append(total_attempts)
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Append each total@\textunderscore@attempts value to the list, ft@\textunderscore@attempted.
+\end{lstlisting}
+\begin{lstlisting}
+player_free_throws['FTM'] = ft_made
+\end{lstlisting}
+Create a new column, FTM, in player\textunderscore free\textunderscore throws, and assign the values in the ft\textunderscore made list to the column.
+\begin{lstlisting}
+player_free_throws['FTA'] = ft_attempted
+\end{lstlisting}
+Create a new column, FTA, in player\textunderscore free\textunderscore throws, and assign the values in the ft\textunderscore attempted list to the column.
+\begin{lstlisting}
+player_free_throws['FT%'] = (player_free_throws['FTM'] / player_free_throws['FTA'] * 100).round(2)
+\end{lstlisting}
+Creates a new column, FT\%, in player\textunderscore free\textunderscore throws by dividing the FTM column values by the corresponding FTA values, multiplying by 100, and rounding to two decimal places.
+\begin{lstlisting}
+player_pbp = pd.concat([player_pbp, player_free_throws], axis=0)
+\end{lstlisting}
+Concatenates the DataFrame player\textunderscore free\textunderscore throws with player\textunderscore pbp along the rows and assigns the DataFrame to player\textunderscore pbp.
+\begin{lstlisting}
+player_pbp.update(player_free_throws[['FTM', 'FTA', 'FT%']])
+\end{lstlisting}
+Updates the player\textunderscore pbp DataFrame with values from the FTM, FTA, and FT\% columns of the\\
+player\textunderscore free\textunderscore throws DataFrame.
+\begin{lstlisting}
+player_pbp.reset_index(inplace=True)
+\end{lstlisting}
+Reset the index to make the current index a column.
+\begin{lstlisting}
+player_pbp.drop_duplicates(subset='index', inplace=True)
+\end{lstlisting}
+Drop duplicate rows based on the index column.
+\begin{lstlisting}
+player_pbp.drop(columns=['index'], inplace=True)
+\end{lstlisting}
+Drop the additional index column created by reset\textunderscore index.
+\begin{lstlisting}
+player_pbp
+\end{lstlisting}
+Print the updated player\textunderscore pbp DataFrame.
+\begin{lstlisting}
+subs_list = gamerotation.GameRotation(game_id= game_id)
+\end{lstlisting}
+Instantiates an object of a class named GameRotation from the gamerotation endpoint. Finds the substitution times for the game with the given game ID and stores it in a variable, subs\textunderscore list.
+\begin{lstlisting}
+subs_list_df = pd.DataFrame()
+\end{lstlisting}
+Creates an empty DataFrame, subs\textunderscore list\textunderscore df.
+\begin{lstlisting}
+if home_boolean:
+\end{lstlisting}
+If home\textunderscore boolean is True, executes the following code.
+\begin{lstlisting}
+    subs_list_df = subs_list.data_sets[1].get_data_frame()
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Retrieves the game rotation dataset with index 1, which corresponds with the home team, and assigns it to
+    subs@\textunderscore@list@\textunderscore@df.
+\end{lstlisting}
+\begin{lstlisting}
+else:
+\end{lstlisting}
+If home\textunderscore boolean is False, executes the following code.
+\begin{lstlisting}
+    subs_list_df = subs_list.data_sets[0].get_data_frame()
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Retrieves the game rotation dataset with index 0, which corresponds with the away team, and assigns it to
+    subs@\textunderscore@list@\textunderscore@df.
+\end{lstlisting}
+\begin{lstlisting}
+subs_list_df = subs_list_df[subs_list_df["PERSON_ID"] == player_id]
+\end{lstlisting}
+Indexes subs\textunderscore list\textunderscore df for rows where the PERSON\textunderscore ID column value equals the variable player\textunderscore id. Assigns the result back to subs\textunderscore df.
+\begin{lstlisting}
+subs_list_df["IN_TIME_REAL"] = subs_list_df["IN_TIME_REAL"] / 10
+\end{lstlisting}
+Divides the values of the IN\textunderscore TIME\textunderscore REAL column of subs\textunderscore list\textunderscore df by 10.
+\begin{lstlisting}
+subs_list_df["OUT_TIME_REAL"] = subs_list_df["OUT_TIME_REAL"] / 10
+\end{lstlisting}
+Divides the values of the OUT\textunderscore TIME\textunderscore REAL column of subs\textunderscore list\textunderscore df by 10.
+\begin{lstlisting}
+subs_list_df
+\end{lstlisting}
+Prints the updated subs\textunderscore list\textunderscore df DataFrame.
+\begin{lstlisting}
+bench_tuples = []
+\end{lstlisting}
+Create new empty list in variable bench\_tuples. It will be filled with tuples representing time the player is not on the court.
+\begin{lstlisting}
+for i in range(len(subs_list_df)):
+\end{lstlisting}
+Begin looping and increment variable i from 0 to the number of rows in the subs\_list data frame minus 1.
+\begin{lstlisting}
+    curr_row = subs_list_df.iloc[i]
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Set new varialbe curr_row to be the current row in the loop.
+\end{lstlisting}
+\begin{lstlisting}
+    if i == 0 and curr_row["IN_TIME_REAL"] != 0.0:
+        bench_tuples.append((0.0, curr_row["IN_TIME_REAL"]))
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    If the player's first time being subbed in is not at the beggining of the game (time 0.0), add a tuple from
+    0.0 to the first time they are subbed in to the variable bench_tuples.
+\end{lstlisting}
+\begin{lstlisting}
+    if i != len(subs_list_df)-1:
+        next_row = subs_list_df.iloc[i+1]
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    If we are not currently on the player's last sub, set new variable next_row to be the next row in the loop.
+\end{lstlisting}
+\begin{lstlisting}
+        bench_tuples.append((curr_row["OUT_TIME_REAL"],next_row["IN_TIME_REAL"]))
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+        Add a tuple from the current sub's sub out time until the next sub's sub in time.
+\end{lstlisting}
+\begin{lstlisting}
+    elif curr_row["OUT_TIME_REAL"] != 2880.0:
+        bench_tuples.append((curr_row["OUT_TIME_REAL"], 2880.0))
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Otherwise, if the current sub did not last until the end of the 4th quater (time 2880.0) add a tuple from
+    the current sub's checkout time until 2880.0.
+\end{lstlisting}
+\begin{lstlisting}
+player_pbp['ON_COURT'] = 0
+\end{lstlisting}
+Initialize the ON\textunderscore COURT column with zeros.
+\begin{lstlisting}
+player_pbp['MIN_PLAYED'] = player_pbp['SECONDS_ELAPSED']
+\end{lstlisting}
+Initialize the MIN\textunderscore PLAYED column with SECONDS\textunderscore ELAPSED column values.
+\begin{lstlisting}
+for index, row in player_pbp.iterrows():
+\end{lstlisting}
+Iterate over each row in player\textunderscore pbp DataFrame.
+\begin{lstlisting}
+    current_time = row['SECONDS_ELAPSED']
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Assign the current time in seconds to current@\textunderscore@time.    
+\end{lstlisting}
+\begin{lstlisting}
+    if any((subs_list_df['IN_TIME_REAL'] <= current_time) & (subs_list_df['OUT_TIME_REAL'] > current_time)):
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Check if the player was on the court at this time.
+\end{lstlisting}
+\begin{lstlisting}
+        player_pbp.at[index, 'ON_COURT'] = 1
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+        Assign the rows that satisfy the condition a value of 1 in the ON@\textunderscore@COURT column.
+\end{lstlisting}
+\begin{lstlisting}
+    if player_pbp.at[index, 'ON_COURT'] == 1 and index > 0:
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Checks if the ON@\textunderscore@COURT value is 1 and the index is greater than 0.
+\end{lstlisting}
+\begin{lstlisting}
+        prev_time = player_pbp.at[index - 1, 'SECONDS_ELAPSED']
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+        If the previous condition is met, assign the SECONDS@\textunderscore@ELAPSED value of the previous row to the
+        variable prev@\textunderscore@time.
+\end{lstlisting}
+\begin{lstlisting}
+        player_pbp.at[index, 'MIN_PLAYED'] = player_pbp.at[index - 1, 'MIN_PLAYED'] + (current_time - prev_time)
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+        Updates MIN_PLAYED by adding the difference of the current and previous time to the MIN_PLAYED
+        value of the previous row.
+\end{lstlisting}
+\begin{lstlisting}
+    elif index > 0:
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    If the index is greater than 0, execute the following code.
+\end{lstlisting}
+\begin{lstlisting}
+        player_pbp.at[index, 'MIN_PLAYED'] = player_pbp.at[index - 1, 'MIN_PLAYED']
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+        If player is not on the court, keep MIN_PLAYED value the same as the previous row.
+\end{lstlisting}
+\begin{lstlisting}
+player_pbp['ON_COURT'] = player_pbp['ON_COURT'].astype(bool)
+\end{lstlisting}
+Convert ON\textunderscore COURT column to boolean.
+\begin{lstlisting}
+player_pbp['MIN_PLAYED'] = (player_pbp['MIN_PLAYED'] / 60).round(3)
+\end{lstlisting}
+Convert MIN\textunderscore PLAYED column to minutes.
+\begin{lstlisting}
+box_advanced = boxscoreadvancedv2.BoxScoreAdvancedV2(game_id=game_id)
+\end{lstlisting}
+Instantiates an object of a class named BoxScoreAdvancedV2 from the boxscoreadvancedv2 endpoint. Finds the advanced box score statistics for the game with the given game ID and stores it in a variable, box\textunderscore advanced.
+\begin{lstlisting}
+player_box_advanced_df = box_advanced.get_data_frames()[1]
+\end{lstlisting}
+Access the second dataset of the boxscoreadvancedv2 endpoint, which gives advanced stats for teams. Assign the resulting DataFrame to player\textunderscore box\textunderscore advanced\textunderscore df.
+\begin{lstlisting}
+if home_boolean:
+\end{lstlisting}
+If home\textunderscore boolean is True, execute the following code.
+\begin{lstlisting}
+    advanced_stat_index = 0
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Create a variable advanced_stat_index and assign it a value of 0.
+\end{lstlisting}
+\begin{lstlisting}
+else:
+\end{lstlisting}
+If home\textunderscore boolean is False, execute the following code.
+\begin{lstlisting}
+    advanced_stat_index = 1
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Create a variable advanced_stat_index and assign it a value of 1.
+\end{lstlisting}
+\begin{lstlisting}
+player_box_advanced_df = player_box_advanced_df[player_box_advanced_df['TEAM_ABBREVIATION'] == player_pbp['PLAYER1_TEAM_ABBREVIATION'].iloc[advanced_stat_index]]
+\end{lstlisting}
+Index player\textunderscore box\textunderscore advanced\textunderscore df to find the row with a TEAM\textunderscore ABBREVIATION column value equal to the\\ PLAYER1\textunderscore TEAM\textunderscore ABBREVIATION in player\textunderscore pbp at the row index stored in advanced\textunderscore stat\textunderscore index.
+\begin{lstlisting}
+player_pbp['PACE'] = player_box_advanced_df['PACE'].iloc[0]
+\end{lstlisting}
+Index player\textunderscore box\textunderscore advanced to find the first row's PACE column value. Create a new PACE column in player\textunderscore pbp and assign the pace value to this column. 
+\begin{lstlisting}
+player_pbp.iloc[0] = player_pbp.iloc[0].fillna(0)
+\end{lstlisting}
+Set stats that are NaN to 0 in the first row of the DataFrame
+\begin{lstlisting}
+stat_columns = ['TEAM_FGM', 'TEAM_AST', 'PACE', 'MIN_PLAYED', 'PTS', 'AST', 'OREB', 'DREB', 'REB', 'STL', 'BLK', 'TO', 'PF', 'FGM', 'FGA', 'FG%', '3PTA', '3PTM', '3PT%', 'FTA', 'FTM', 'FT%']
+\end{lstlisting}
+Create a list, stat\textunderscore columns, containing the stats we'll need to compute advanced stats later.
+\begin{lstlisting}
+player_pbp[stat_columns] = player_pbp[stat_columns].ffill()
+\end{lstlisting}
+Forward fill the columns in player\textunderscore pbp whose names are stored in stat\textunderscore columns. This fills null values in these columns with the last non-null value in the column.
+\begin{lstlisting}
+player_pbp[stat_columns] = player_pbp[stat_columns].apply(pd.to_numeric, errors='coerce')
+\end{lstlisting}
+Convert stat\textunderscore columns column types to numeric. The errors='coerce' parameter means pandas will attempt to find a suitable value for any values that cause an error. The value will likely be NaN (not a number).
+\begin{lstlisting}
+player_pbp
+\end{lstlisting}
+Prints the updated player\textunderscore pbp.
+\begin{lstlisting}
+season_game_finder = leaguegamefinder.LeagueGameFinder(season_nullable= season, league_id_nullable= '00')
+\end{lstlisting}
+Instantiates an object of a class named LeagueGameFinder from the leaguegamefinder endpoint. Finds the ending box score statistics for every game in the season stored in the variable, season. A league id of '00' represents the NBA (as opposed to G-league, etc.). The result is stored in a variable, season\textunderscore game\textunderscore finder.
+\begin{lstlisting}
+season_games = season_game_finder.get_data_frames()[0]
+\end{lstlisting}
+Retrieves the DataFrames for the only dataset in the LeagueGameFinder endpoint (index 0), and assigns it to a season\textunderscore games. This DataFrame contains the game statistics for all games in a season.
+\begin{lstlisting}
+season_league_averages = season_games[['PTS', 'FGM', 'FGA', 'FG3M', 'FG3A', 'FTM', 'FTA', 'OREB', 'REB', 'AST', 'TOV', 'PF']].mean()
+\end{lstlisting}
+Selects various stat columns of season\textunderscore games and calculates the mean of these stats across all games in a season. Assigns the results to season\textunderscore league\textunderscore averages.
+\begin{lstlisting}
+season_league_averages = pd.DataFrame(season_league_averages)
+\end{lstlisting}
+Converts season\textunderscore league\textunderscore averages to a DataFrame.
+\begin{lstlisting}
+season_league_averages = season_league_averages.T
+\end{lstlisting}
+Transposes season\textunderscore league\textunderscore averages, switching the positions of rows and columns. (Rows become columns, and columns become rows.) Assigns the result back to season\textunderscore league\textunderscore averages.
+\begin{lstlisting}
+season_league_averages.apply(pd.to_numeric)
+\end{lstlisting}
+Convert season\textunderscore league\textunderscore averages column types to numeric.
+\begin{lstlisting}
+PTS = player_pbp['PTS']
+\end{lstlisting}
+Assign the PTS column of player\textunderscore pbp to a variable, PTS.
+\begin{lstlisting}
+AST = player_pbp['AST']
+\end{lstlisting}
+Assign the AST column of player\textunderscore pbp to a variable, AST.
+\begin{lstlisting}
+OREB = player_pbp['OREB']
+\end{lstlisting}
+Assign the OREB column of player\textunderscore pbp to a variable, OREB.
+\begin{lstlisting}
+DREB = player_pbp['DREB']
+\end{lstlisting}
+Assign the DREB column of player\textunderscore pbp to a variable, DREB.
+\begin{lstlisting}
+REB = player_pbp['REB']
+\end{lstlisting}
+Assign the REB column of player\textunderscore pbp to a variable, REB.
+\begin{lstlisting}
+STL = player_pbp['STL']
+\end{lstlisting}
+Assign the STL column of player\textunderscore pbp to a variable, STL.
+\begin{lstlisting}
+BLK = player_pbp['BLK']
+\end{lstlisting}
+Assign the BLK column of player\textunderscore pbp to a variable, BLK.
+\begin{lstlisting}
+TO = player_pbp['TO']
+\end{lstlisting}
+Assign the TO column of player\textunderscore pbp to a variable, TO.
+\begin{lstlisting}
+PF = player_pbp['PF']
+\end{lstlisting}
+Assign the PF column of player\textunderscore pbp to a variable, PF.
+\begin{lstlisting}
+FGM = player_pbp['FGM']
+\end{lstlisting}
+Assign the FGM column of player\textunderscore pbp to a variable, FGM.
+\begin{lstlisting}
+FGA = player_pbp['FGA']
+\end{lstlisting}
+Assign the FGA column of player\textunderscore pbp to a variable, FGA.
+\begin{lstlisting}
+FTM = player_pbp['FTM']
+\end{lstlisting}
+Assign the FTM column of player\textunderscore pbp to a variable, FTM.
+\begin{lstlisting}
+FTA = player_pbp['FTA']
+\end{lstlisting}
+Assign the FTA column of player\textunderscore pbp to a variable, FTA.
+\begin{lstlisting}
+FG3M = player_pbp['3PTM']
+\end{lstlisting}
+Assign the 3PTM column of player\textunderscore pbp to a variable, FG3M.
+\begin{lstlisting}
+MIN = player_pbp['MIN_PLAYED']
+\end{lstlisting}
+Assign the MIN\textunderscore PLAYED column of player\textunderscore pbp to a variable, MIN.
+\begin{lstlisting}
+PACE = player_pbp['PACE']
+\end{lstlisting}
+Assign the PACE column of player\textunderscore pbp to a variable, PACE.
+\begin{lstlisting}
+GAME_PTS = player_pbp['GAME_PTS']
+\end{lstlisting}
+Assign the GAME\textunderscore PTS column of player\textunderscore pbp to a variable, GAME\textunderscore PTS.
+\begin{lstlisting}
+GAME_AST = player_pbp['GAME_AST']
+\end{lstlisting}
+Assign the GAME\textunderscore AST column of player\textunderscore pbp to a variable, GAME\textunderscore AST.
+\begin{lstlisting}
+GAME_REB = player_pbp['GAME_REB']
+\end{lstlisting}
+Assign the GAME\textunderscore REB column of player\textunderscore pbp to a variable, GAME\textunderscore REB.
+\begin{lstlisting}
+GAME_STL = player_pbp['GAME_STL']
+\end{lstlisting}
+Assign the GAME\textunderscore STL column of player\textunderscore pbp to a variable, GAME\textunderscore STL.
+\begin{lstlisting}
+GAME_BLK = player_pbp['GAME_BLK']
+\end{lstlisting}
+Assign the GAME\textunderscore BLK column of player\textunderscore pbp to a variable, GAME\textunderscore BLK.
+\begin{lstlisting}
+GAME_TO = player_pbp['GAME_TO']
+\end{lstlisting}
+Assign the GAME\textunderscore TO column of player\textunderscore pbp to a variable, GAME\textunderscore TO.
+\begin{lstlisting}
+GAME_PF = player_pbp['GAME_PF']
+\end{lstlisting}
+Assign the GAME\textunderscore PF column of player\textunderscore pbp to a variable, GAME\textunderscore PF.
+\begin{lstlisting}
+GAME_FGM = player_pbp['GAME_FGM']
+\end{lstlisting}
+Assign the GAME\textunderscore FGM column of player\textunderscore pbp to a variable, GAME\textunderscore FGM.
+\begin{lstlisting}
+GAME_FGA = player_pbp['GAME_FGA']
+\end{lstlisting}
+Assign the GAME\textunderscore FGA column of player\textunderscore pbp to a variable, GAME\textunderscore FGA.
+\begin{lstlisting}
+GAME_FTM = player_pbp['GAME_FTM']
+\end{lstlisting}
+Assign the GAME\textunderscore FTM column of player\textunderscore pbp to a variable, GAME\textunderscore FTM.
+\begin{lstlisting}
+GAME_FTA = player_pbp['GAME_FTA']
+\end{lstlisting}
+Assign the GAME\textunderscore FTA column of player\textunderscore pbp to a variable, GAME\textunderscore FTA.
+\begin{lstlisting}
+eFG = []
+\end{lstlisting}
+Create an empty list, eFG.
+\begin{lstlisting}
+for index, row in player_pbp.iterrows():
+\end{lstlisting}
+Iterate through the rows of player\textunderscore pbp.
+\begin{lstlisting}
+    if row['FGA'] == 0:
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    If the row's FGA column value equals 0, execute the following code.
+\end{lstlisting}
+\begin{lstlisting}
+        eFG.append(0)
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+        Append 0 to the eFG list.
+\end{lstlisting}
+\begin{lstlisting}
+    else:
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    If the row's FGA column value does not equal 0, execute the following code.
+\end{lstlisting}
+\begin{lstlisting}
+        eFG.append((row['FGM'] + 0.5 * row['3PTM']) / row['FGA'])
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+        Implement the effective field goal percentage formula on the row. Append the result to the eFG list.
+\end{lstlisting}
+\begin{lstlisting}
+player_pbp['eFG%'] = [round(efg * 100, 2) for efg in eFG]
+\end{lstlisting}
+Creates a new column, eFG\% in player\textunderscore pbp by multiplying each value in eFG by 100, rounding to two decimal places, and assigning the resulting values to the column.
+\begin{lstlisting}
+player_pbp['PTS'] = player_pbp['PTS'].apply(pd.to_numeric, errors='coerce')
+\end{lstlisting}
+Convert PTS column of player\textunderscore pbp to numeric.
+\begin{lstlisting}
+TS_percentages = []
+\end{lstlisting}
+Create an empty list, TS\textunderscore percentages.
+\begin{lstlisting}
+for index, row in player_pbp.iterrows():
+\end{lstlisting}
+Iterate through the rows of player\textunderscore pbp.
+\begin{lstlisting}
+    if row['FGA'] == 0 and row['FTA'] == 0:
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    If the row's FGA and FTA column values both equal 0, execute the following code.
+\end{lstlisting}
+\begin{lstlisting}
+        TS_percentages.append(0)
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+        Append 0 to the TS_percentages list.
+\end{lstlisting}
+\begin{lstlisting}
+    else:
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    If the row's FGA and FTA column values are not both equal to 0, execute the following code.
+\end{lstlisting}
+\begin{lstlisting}
+        TS_percentages.append(row['PTS'] / (2 * (row['FGA'] + 0.44 * row['FTA'])))
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+        Implement the true shooting percentage formula on the row. Append the result to the TS_percentages list.
+\end{lstlisting}
+\begin{lstlisting}
+player_pbp['TS%'] = [round(ts * 100, 2) for ts in TS_percentages]
+\end{lstlisting}
+Creates a new column, TS\% in player\textunderscore pbp by multiplying each value in TS\textunderscore percentages by 100, rounding to two decimal places, and assigning the resulting values to the column.
+\begin{lstlisting}
+lgPTS = season_league_averages['PTS'].iloc[0]
+\end{lstlisting}
+Assign the PTS column of season\textunderscore league\textunderscore averages to a variable, lgPTS.
+\begin{lstlisting}
+lgFGM = season_league_averages['FGM'].iloc[0]
+\end{lstlisting}
+Assign the FGM column of season\textunderscore league\textunderscore averages to a variable, lgFGM.
+\begin{lstlisting}
+lgFGA = season_league_averages['FGA'].iloc[0]
+\end{lstlisting}
+Assign the FGA column of season\textunderscore league\textunderscore averages to a variable, lgFGA.
+\begin{lstlisting}
+lgFG3M = season_league_averages['FG3M'].iloc[0]
+\end{lstlisting}
+Assign the FG3M column of season\textunderscore league\textunderscore averages to a variable, lgFG3M.
+\begin{lstlisting}
+lgFG3A = season_league_averages['FG3A'].iloc[0]
+\end{lstlisting}
+Assign the FG3A column of season\textunderscore league\textunderscore averages to a variable, lgFG3A.
+\begin{lstlisting}
+lgFTM = season_league_averages['FTM'].iloc[0]
+\end{lstlisting}
+Assign the FTM column of season\textunderscore league\textunderscore averages to a variable, lgFTM.
+\begin{lstlisting}
+lgFTA = season_league_averages['FTA'].iloc[0]
+\end{lstlisting}
+Assign the FTA column of season\textunderscore league\textunderscore averages to a variable, lgFTA.
+\begin{lstlisting}
+lgOREB = season_league_averages['OREB'].iloc[0]
+\end{lstlisting}
+Assign the OREB column of season\textunderscore league\textunderscore averages to a variable, lgOREB.
+\begin{lstlisting}
+lgREB = season_league_averages['REB'].iloc[0]
+\end{lstlisting}
+Assign the REB column of season\textunderscore league\textunderscore averages to a variable, lgREB.
+\begin{lstlisting}
+lgAST = season_league_averages['AST'].iloc[0]
+\end{lstlisting}
+Assign the AST column of season\textunderscore league\textunderscore averages to a variable, lgAST.
+\begin{lstlisting}
+lgTO = season_league_averages['TOV'].iloc[0]
+\end{lstlisting}
+Assign the TO column of season\textunderscore league\textunderscore averages to a variable, lgTO.
+\begin{lstlisting}
+lgPF = season_league_averages['PF'].iloc[0]
+\end{lstlisting}
+Assign the PF column of season\textunderscore league\textunderscore averages to a variable, lgPF.
+\begin{lstlisting}
+tmAST = player_pbp['TEAM_AST']
+\end{lstlisting}
+Assign the TEAM\textunderscore AST column of player\textunderscore pbp to a variable, tmAST.
+\begin{lstlisting}
+tmFGM = player_pbp['TEAM_FGM']
+\end{lstlisting}
+Assign the TEAM\textunderscore FGM column of player\textunderscore pbp to a variable, tmFGM.
+\begin{lstlisting}
+factor = (2/3) - ((.5 * (lgAST / lgFGM)) / (2 * (lgFGM / lgFTM)))
+\end{lstlisting}
+Implement factor formula and assign the result to a variable, factor.
+\begin{lstlisting}
+VOP = lgPTS / (lgFGA - lgOREB + lgTO + 0.44 * lgFTA)
+\end{lstlisting}
+Implement value of possession formula and assign the result to a variable, VOP.
+\begin{lstlisting}
+DRBP = (lgREB - lgOREB) / lgREB
+\end{lstlisting}
+Implement defensive rebound percentage formula and assign the result to a variable, DRBP.
+\begin{lstlisting}
+player_pbp['PER'] = (100 / MIN) * (FG3M - ((PF * lgFTM) / lgPF) + ((FTM / 2) * (2 - (tmAST/(3 * tmFGM)))) + (FGM * (2 - ((factor * tmAST) / tmFGM))) + ((2 * AST) / 3) + VOP * (DRBP * (2 * OREB + BLK - 0.2464 * (FTA - FTM) - (FGA - FGM) - REB) + ((0.44 * lgFTA * PF) / lgPF) - TO - OREB + STL + REB - 0.1936 * (FTA - FTM)))
+\end{lstlisting}
+Implement unadjusted player efficiency rating formula. Assign resulting values to a new PER column of player\textunderscore pbp.
+\begin{lstlisting}
+player_pbp['PIE'] = 100 * (PTS + FGM + FTM - FGA - FTA + DREB + OREB/2 + AST + STL + BLK/2 - PF - TO) / (GAME_PTS + GAME_FGM + GAME_FTM - GAME_FGA - GAME_FTA + (1.5 * GAME_REB) + GAME_AST + GAME_STL + GAME_BLK/2 - GAME_PF - GAME_TO)
+\end{lstlisting}
+Implement player impact estimate formula. Assign resulting values to a new PIE column of player\textunderscore pbp.
+\begin{lstlisting}
+player_pbp['TENDEX'] = (PTS + OREB + DREB + AST + STL + BLK - (FGA - FGM) - (0.5 * (FTA - FTM)) - TO - PF) / (MIN * PACE)
+\end{lstlisting}
+Implement tendex formula. Assign resulting values to a new TENDEX column of player\textunderscore pbp.
+\begin{lstlisting}
+player_pbp.iloc[0] = player_pbp.iloc[0].fillna(0)
+\end{lstlisting}
+Fills NA values in the first row of player\textunderscore pbp with 0.
+\begin{lstlisting}
+player_pbp.ffill(inplace = True)
+\end{lstlisting}
+Forward fills the values in player\textunderscore pbp, filling NA values with the last non-null value in the column. Makes changes inplace, directly in the DataFrame, rather than making a copy.
+\begin{lstlisting}
+player_pbp
+\end{lstlisting}
+Prints the updated DataFrame.
+
+\subsection{Plotting Stats as a Function of Time}
+\subsubsection{Plotting a Traditional Stat}
+\begin{lstlisting}
+player_pbp_on_court = player_pbp[player_pbp['ON_COURT']]
+\end{lstlisting}
+Creates a new DataFrame by filtering the player\textunderscore pbp DataFrame for rows where the 'ON\textunderscore COURT' column value is True. The new DataFrame only includes plays for which the given player was on the court, and it is assigned to a variable, player\textunderscore pbp\textunderscore on\textunderscore court.
+\begin{lstlisting}
+player_pbp_off_court = player_pbp[~player_pbp['ON_COURT']]
+\end{lstlisting}
+Creates a new DataFrame by filtering the player\textunderscore pbp DataFrame for rows where the 'ON\textunderscore COURT' column value is False. The \textasciitilde (tilde) is the "not" operator, which negates the boolean values in the 'ON\textunderscore COURT' column. The new DataFrame only includes plays for which the given player was on the bench, and it is assigned to a variable, player\textunderscore pbp\textunderscore off\textunderscore court.
+\begin{lstlisting}
+max_seconds = player_pbp['SECONDS_ELAPSED'].max()
+\end{lstlisting}
+Creates a variable, max\textunderscore seconds, equal to the maximum value of the 'SECONDS\textunderscore ELAPSED' column of the player\textunderscore pbp DataFrame.
+\begin{lstlisting}
+num_quarters = max_seconds // (12 * 60)
+\end{lstlisting}
+Calculates the number of quarters in the given game by dividing max\textunderscore seconds by the number of seconds in a quarter. Using floor division (//), the quotient is rounded down to the nearest integer. The result is assigned to a variable, num\textunderscore quarters.
+\begin{lstlisting}
+ticks = np.arange(0, max_seconds + 1, 12 * 60)
+\end{lstlisting}
+Uses the arange function to create an array of values, with one value for every 12 minutes within the range from 0 to max\textunderscore seconds, and assigns the array to a variable, ticks. 
+\begin{lstlisting}
+plt.xticks(ticks, ['Q1 Start'] + [f'End Q\{i\}' for i in range(1, int(num_quarters) + 1)])
+\end{lstlisting}
+Creates tick labels for the plot's x-axis. The positions are provided by the ticks array. 'Q1 Start' is a static label for the first tick. A list comprehension generates labels for the remaining ticks by iterating over each quarter number from 1 to num\textunderscore quarters, creating a label for each quarter in the format 'End Q\{i\}'.
+\begin{lstlisting}
+basic_stat = input('Enter a basic stat (PTS, AST, OREB, DREB, REB, STL, BLK, TO, PF) to create a flow graph of: ')
+\end{lstlisting}
+Prompts the user to enter a basic stat abbreviation.
+\begin{lstlisting}
+x_on_court = player_pbp_on_court['SECONDS_ELAPSED']
+\end{lstlisting}
+Assigns the SECONDS\textunderscore ELAPSED column of the player\textunderscore pbp\textunderscore on\textunderscore court DataFrame to a variable, x\textunderscore on\textunderscore court.
+\begin{lstlisting}
+y_on_court = player_pbp_on_court[basic_stat]
+\end{lstlisting}
+Assigns the column of the player\textunderscore pbp\textunderscore on\textunderscore court DataFrame with the same name as the basic\textunderscore stat variable to a new variable, y\textunderscore on\textunderscore court.
+\begin{lstlisting}
+plt.plot(x_on_court, y_on_court, linestyle='-', label='On Court')
+\end{lstlisting}
+Generates a plot using x\textunderscore on\textunderscore court values as the x-coordinates, and y\textunderscore on\textunderscore court values as the y-coordinates. Also creates a label which will be used in the plot's legend to identify the line.
+\begin{lstlisting}
+label = 'On Bench'
+\end{lstlisting}
+Creates a variable, label.
+\begin{lstlisting}
+for e in bench_tuples:
+\end{lstlisting}
+Begins iteration on each tuple in bench\textunderscore tuples.
+\begin{lstlisting}
+    plt.plot([e[0], e[1]], [np.interp(e[0], x_on_court, y_on_court), np.interp(e[1], x_on_court, y_on_court)], linestyle='-', color='red', label= label)
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Plots a line between two points [e[0], e[1]] with y-values interpolated from the data points
+    (x_on_court, y_on_court). Sets the line style to solid, the color to red, and assigns a label to the plot.
+\end{lstlisting}
+\begin{lstlisting}
+    label = "_nolegend_"
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Tells matplotlib to exclude the variable, label, from the legend.
+\end{lstlisting}
+\begin{lstlisting}
+x = player_pbp['SECONDS_ELAPSED']
+\end{lstlisting}
+Assigns the SECONDS\textunderscore ELAPSED column of the player\textunderscore pbp DataFrame to a variable, x.
+\begin{lstlisting}
+plt.xlim(x.min(), x.max())
+\end{lstlisting}
+Sets the lower and upper x-axis limits of the plot to the minimum and maximum values of x respectively.
+\begin{lstlisting}
+plt.ylim(0, y_on_court.max() + 2)
+\end{lstlisting}
+Sets the lower y-axis limit of the plot to 0 and the upper y-axis limit to the maximum value of y\textunderscore on \textunderscore court plus two. A value of two is added to the upper y-axis limit to ensure that the plot is not cut off visually.
+\begin{lstlisting}
+plt.xlabel('Game Time')
+\end{lstlisting}
+Creates a label for the x-axis of the plot.
+\begin{lstlisting}
+plt.ylabel(f' {basic_stat}')
+\end{lstlisting}
+Generates a formatted string using the basic\textunderscore stat input value for the y-axis label of the plot.
+\begin{lstlisting}
+plt.title(f' Progression of {basic_stat} for {player_name}')
+\end{lstlisting}
+Generates a formatted string for the plot title using the basic\textunderscore stat and player\textunderscore name input values.
+\begin{lstlisting}
+plt.legend()
+\end{lstlisting}
+Generates a legend for the plot that indicates how to differentiate between a player being on the court versus on the bench.
+\begin{lstlisting}
+plt.grid(True)
+\end{lstlisting}
+Calls the grid function of Matplotlib, which sets visible grid lines for the plot.
+\begin{lstlisting}
+plt.show()
+\end{lstlisting}
+Displays the plot created.
+
+\subsubsection{Plotting Shooting Percentages}
+\begin{lstlisting}
+plt.xticks(ticks, ['Q1 Start'] + [f'End Q{i}' for i in range(1, int(num_quarters) + 1)])
+\end{lstlisting}
+Creates tick labels for the plot's x-axis. The positions are provided by the ticks array. 'Q1 Start' is a static label for the first tick. A list comprehension generates labels for the remaining ticks by iterating over each quarter number from 1 to num\textunderscore quarters, creating a label for each quarter in the format 'End Q\{i\}'.
+\begin{lstlisting}
+x_on_court = player_pbp_on_court['SECONDS_ELAPSED']
+\end{lstlisting}
+Assigns the SECONDS\textunderscore ELAPSED column of the player\textunderscore pbp\textunderscore on\textunderscore court DataFrame to a variable, x\textunderscore on\textunderscore court.
+\begin{lstlisting}
+y_on_court = player_pbp_on_court['FT%']
+\end{lstlisting}
+Assigns the FT\% column of the player\textunderscore pbp\textunderscore on\textunderscore court DataFrame to a new variable, y\textunderscore on\textunderscore court.
+\begin{lstlisting}
+plt.plot(x_on_court, y_on_court, linestyle='-', label='On Court')
+\end{lstlisting}
+Generates a plot using x\textunderscore on\textunderscore court values as the x-coordinates, and y\textunderscore on\textunderscore court values as the y-coordinates. Also creates a label which will be used in the plot's legend to identify the line.
+\begin{lstlisting}
+label = 'On Bench'
+\end{lstlisting}
+Creates a variable, label.
+\begin{lstlisting}
+for e in bench_tuples:
+\end{lstlisting}
+Begins iteration on each tuple in bench\textunderscore tuples.
+\begin{lstlisting}
+    plt.plot([e[0], e[1]], [np.interp(e[0], x_on_court, y_on_court), np.interp(e[1], x_on_court, y_on_court)], linestyle='-', color='red', label= label)
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Plots a line between two points [e[0], e[1]] with y-values interpolated from the data points
+    (x_on_court, y_on_court). Sets the line style to solid, the color to red, and assigns a label to the plot.
+\end{lstlisting}
+\begin{lstlisting}
+    label = "_nolegend_"
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Tells matplotlib to exclude the variable, label, from the legend.
+\end{lstlisting}
+\begin{lstlisting}
+x = player_pbp['SECONDS_ELAPSED']
+\end{lstlisting}
+Assigns the SECONDS\textunderscore ELAPSED column of player\textunderscore pbp to a variable, x.
+\begin{lstlisting}
+plt.xlim(x.min(), x.max())
+\end{lstlisting}
+Sets the lower and upper x-axis limits of the plot to the minimum and maximum values of x respectively.
+\begin{lstlisting}
+plt.ylim(0, y_on_court.max() + 2)
+\end{lstlisting}
+Sets the lower y-axis limit of the plot to 0 and the upper y-axis limit to the maximum value of y\textunderscore on \textunderscore court plus two. A value of two is added to the upper y-axis limit to ensure that the plot is not cut off visually.
+\begin{lstlisting}
+plt.xlabel('Game Time')
+\end{lstlisting}
+Creates a label for the x-axis of the plot.
+\begin{lstlisting}
+plt.ylabel('Free Throw Percentage')
+\end{lstlisting}
+Creates a label for the plot's y-axis.
+\begin{lstlisting}
+plt.title(f'Free Throw Percentage Over the Game for {player_name}')
+\end{lstlisting}
+Generates a formatted string for the plot title using the  player\textunderscore name input value.
+\begin{lstlisting}
+plt.legend()
+\end{lstlisting}
+Generates a legend for the plot that indicates how to differentiate between a player being on the court versus on the bench.
+\begin{lstlisting}
+plt.grid(True)
+\end{lstlisting}
+Calls the grid function of Matplotlib, which sets visible grid lines for the plot.
+\begin{lstlisting}
+plt.show()
+\end{lstlisting}
+Displays the plot created.
+\begin{lstlisting}
+plt.xticks(ticks, ['Q1 Start'] + [f'End Q{i}' for i in range(1, int(num_quarters) + 1)])
+\end{lstlisting}
+Creates tick labels for the plot's x-axis. The positions are provided by the ticks array. 'Q1 Start' is a static label for the first tick. A list comprehension generates labels for the remaining ticks by iterating over each quarter number from 1 to num\textunderscore quarters, creating a label for each quarter in the format 'End Q\{i\}'.
+\begin{lstlisting}
+x_on_court = player_pbp_on_court['SECONDS_ELAPSED']
+\end{lstlisting}
+Assigns the SECONDS\textunderscore ELAPSED column of the player\textunderscore pbp\textunderscore on\textunderscore court DataFrame to a variable, x\textunderscore on\textunderscore court.
+\begin{lstlisting}
+y_on_court = player_pbp_on_court['FG%']
+\end{lstlisting}
+Assigns the FG\% column of the player\textunderscore pbp\textunderscore on\textunderscore court DataFrame to a new variable, y\textunderscore on\textunderscore court.
+\begin{lstlisting}
+plt.plot(x_on_court, y_on_court, linestyle='-', label='On Court')
+\end{lstlisting}
+Generates a plot using x\textunderscore on\textunderscore court values as the x-coordinates, and y\textunderscore on\textunderscore court values as the y-coordinates. Also creates a label which will be used in the plot's legend to identify the line.
+\begin{lstlisting}
+label = 'On Bench'
+\end{lstlisting}
+Creates a variable, label.
+\begin{lstlisting}
+for e in bench_tuples:
+\end{lstlisting}
+Begins iteration on each tuple in bench\textunderscore tuples.
+\begin{lstlisting}
+    plt.plot([e[0], e[1]], [np.interp(e[0], x_on_court, y_on_court), np.interp(e[1], x_on_court, y_on_court)], linestyle='-', color='red', label= label)
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Plots a line between two points [e[0], e[1]] with y-values interpolated from the data points
+    (x_on_court, y_on_court). Sets the line style to solid, the color to red, and assigns a label to the plot.
+\end{lstlisting}
+\begin{lstlisting}
+    label = "_nolegend_"
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Tells matplotlib to exclude the variable, label, from the legend.
+\end{lstlisting}
+\begin{lstlisting}
+x = player_pbp['SECONDS_ELAPSED']
+\end{lstlisting}
+Assigns the SECONDS\textunderscore ELAPSED column of player\textunderscore pbp to a variable, x.
+\begin{lstlisting}
+plt.xlim(x.min(), x.max())
+\end{lstlisting}
+Sets the lower and upper x-axis limits of the plot to the minimum and maximum values of x respectively.
+\begin{lstlisting}
+plt.ylim(0, y_on_court.max() + 2)
+\end{lstlisting}
+Sets the lower y-axis limit of the plot to 0 and the upper y-axis limit to the maximum value of y\textunderscore on \textunderscore court plus two. A value of two is added to the upper y-axis limit to ensure that the plot is not cut off visually.
+\begin{lstlisting}
+plt.xlabel('Game Time')
+\end{lstlisting}
+Creates a label for the x-axis of the plot.
+\begin{lstlisting}
+plt.ylabel('Field Goal Percentage')
+\end{lstlisting}
+Creates a label for the plot's y-axis.
+\begin{lstlisting}
+plt.title(f'Field Goal Percentage Over the Game for {player_name}')
+\end{lstlisting}
+Generates a formatted string for the plot title using the player\textunderscore name input value.
+\begin{lstlisting}
+plt.legend()
+\end{lstlisting}
+Generates a legend for the plot that indicates how to differentiate between a player being on the court versus on the bench.
+\begin{lstlisting}
+plt.grid(True)
+\end{lstlisting}
+Calls the grid function of Matplotlib, which sets visible grid lines for the plot.
+\begin{lstlisting}
+plt.show()
+\end{lstlisting}
+Displays the plot created.
+\begin{lstlisting}
+plt.xticks(ticks, ['Q1 Start'] + [f'End Q{i}' for i in range(1, int(num_quarters) + 1)])
+\end{lstlisting}
+Creates tick labels for the plot's x-axis. The positions are provided by the ticks array. 'Q1 Start' is a static label for the first tick. A list comprehension generates labels for the remaining ticks by iterating over each quarter number from 1 to num\textunderscore quarters, creating a label for each quarter in the format 'End Q\{i\}'.
+\begin{lstlisting}
+x_on_court = player_pbp_on_court['SECONDS_ELAPSED']
+\end{lstlisting}
+Assigns the SECONDS\textunderscore ELAPSED column of the player\textunderscore pbp\textunderscore on\textunderscore court DataFrame to a variable, x\textunderscore on\textunderscore court.
+\begin{lstlisting}
+y_on_court = player_pbp_on_court['3PT%']
+\end{lstlisting}
+Assigns the 3PT\% column of the player\textunderscore pbp\textunderscore on\textunderscore court DataFrame to a new variable, y\textunderscore on\textunderscore court.
+\begin{lstlisting}
+plt.plot(x_on_court, y_on_court, linestyle='-', label='On Court')
+\end{lstlisting}
+Generates a plot using x\textunderscore on\textunderscore court values as the x-coordinates, and y\textunderscore on\textunderscore court values as the y-coordinates. Also creates a label which will be used in the plot's legend to identify the line.
+\begin{lstlisting}
+label = 'On Bench'
+\end{lstlisting}
+Creates a variable, label.
+\begin{lstlisting}
+for e in bench_tuples:
+\end{lstlisting}
+Begins iteration on each tuple in bench\textunderscore tuples.
+\begin{lstlisting}
+    plt.plot([e[0], e[1]], [np.interp(e[0], x_on_court, y_on_court), np.interp(e[1], x_on_court, y_on_court)], linestyle='-', color='red', label= label)
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Plots a line between two points [e[0], e[1]] with y-values interpolated from the data points
+    (x_on_court, y_on_court). Sets the line style to solid, the color to red, and assigns a label to the plot.
+\end{lstlisting}
+\begin{lstlisting}
+    label = "_nolegend_"
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Tells matplotlib to exclude the variable, label, from the legend.
+\end{lstlisting}
+\begin{lstlisting}
+x = player_pbp['SECONDS_ELAPSED']
+\end{lstlisting}
+Assigns the SECONDS\textunderscore ELAPSED column of player\textunderscore pbp to a variable, x.
+\begin{lstlisting}
+plt.xlim(x.min(), x.max())
+\end{lstlisting}
+Sets the lower and upper x-axis limits of the plot to the minimum and maximum values of x respectively.
+\begin{lstlisting}
+plt.ylim(0, y_on_court.max() + 2)
+\end{lstlisting}
+Sets the lower y-axis limit of the plot to 0 and the upper y-axis limit to the maximum value of y\textunderscore on \textunderscore court plus two. A value of two is added to the upper y-axis limit to ensure that the plot is not cut off visually.
+\begin{lstlisting}
+plt.xlabel('Game Time')
+\end{lstlisting}
+Creates a label for the x-axis of the plot.
+\begin{lstlisting}
+plt.ylabel('Three Point Percentage')
+\end{lstlisting}
+Creates a label for the plot's y-axis.
+\begin{lstlisting}
+plt.title(f'Three Point Percentage Over the Game for {player_name}')
+\end{lstlisting}
+Generates a formatted string for the plot title using the player\textunderscore name input value.
+\begin{lstlisting}
+plt.legend()
+\end{lstlisting}
+Generates a legend for the plot that indicates how to differentiate between a player being on the court versus on the bench.
+\begin{lstlisting}
+plt.grid(True)
+\end{lstlisting}
+Calls the grid function of Matplotlib, which sets visible grid lines for the plot.
+\begin{lstlisting}
+plt.show()
+\end{lstlisting}
+Displays the plot created.
+\subsubsection{Plotting Field Goal Percentage Over a Season}
+
+\begin{lstlisting}
+games[['FG_PCT', 'FG3_PCT', 'FT_PCT']] *= 100
+\end{lstlisting}
+Multiplies the FG\textunderscore PCT, FG3\textunderscore PCT, and FT\textunderscore PCT columns of the games DataFrame by 100.
+\begin{lstlisting}
+games.fillna(0, inplace = True)
+\end{lstlisting}
+Fills null values of the games DataFrame with 0, making changes directly in the original DataFrame, rather than making a new one.
+\begin{lstlisting}
+games
+\end{lstlisting}
+Prints the updated games DataFrame.
+\begin{lstlisting}
+x = games.index
+\end{lstlisting}
+Assigns the index of games to a variable, x.
+\begin{lstlisting}
+y = games['FG_PCT']
+\end{lstlisting}
+Assigns the FG\textunderscore PCT column of games to a variable, y.
+\begin{lstlisting}
+plt.plot(x, y)
+\end{lstlisting}
+Generates a plot using x as the x-coordinates, and y as the y-coordinates.
+\begin{lstlisting}
+plt.xlabel('Games Played')
+\end{lstlisting}
+Creates a label for the x-axis of the plot.
+\begin{lstlisting}
+plt.ylabel('FG%')
+\end{lstlisting}
+Creates a label for the plot's y-axis.
+\begin{lstlisting}
+plt.title(f'FG% by Game for {player_name} in the {season} season')
+\end{lstlisting}
+Generates a formatted string for the plot title using the player\textunderscore name and season input values.
+\begin{lstlisting}
+plt.xlim(x.min(), x.max())
+\end{lstlisting}
+Sets the lower and upper x-axis limits of the plot to the minimum and maximum values of x respectively.
+\begin{lstlisting}
+plt.ylim(0, y.max() + 5)
+\end{lstlisting}
+Sets the lower y-axis limit of the plot to 0 and the upper y-axis limit to the maximum values in y plus five (to ensure that the plot is not cut off visually).
+\begin{lstlisting}
+plt.grid(True)
+\end{lstlisting}
+Calls the grid function of Matplotlib, which sets visible grid lines for the plot.
+\begin{lstlisting}
+plt.show()
+\end{lstlisting}
+Displays the plot created.
+\begin{lstlisting}
+games['CUMULATIVE_FG_PCT'] = (games['FGM'].cumsum() / games['FGA'].cumsum() * 100).round(2)
+\end{lstlisting}
+Creates a new column, CUMULATIVE\textunderscore FG\textunderscore PCT, in games by dividing the cumulative sum of FGM column values by the cumulative sum of FGA values, multiplying by 100, and rounding to two decimal places.
+\begin{lstlisting}
+games['CUMULATIVE_FG3_PCT'] = (games['FG3M'].cumsum() / games['FG3A'].cumsum() * 100).round(2)
+\end{lstlisting}
+Creates a new column, CUMULATIVE\textunderscore FG3\textunderscore PCT, in games by dividing the cumulative sum of FG3M column values by the cumulative sum of FG3A values, multiplying by 100, and rounding to two decimal places.
+\begin{lstlisting}
+games['CUMULATIVE_FT_PCT'] = (games['FTM'].cumsum() / games['FTA'].cumsum() * 100).round(2)
+\end{lstlisting}
+Creates a new column, CUMULATIVE\textunderscore FT\textunderscore PCT, in games by dividing the cumulative sum of FTM column values by the cumulative sum of FTA values, multiplying by 100, and rounding to two decimal places.
+\begin{lstlisting}
+games
+\end{lstlisting}
+Prints the updated games DataFrame.
+\begin{lstlisting}
+x = games.index
+\end{lstlisting}
+Assigns the index of games to a variable, x.
+\begin{lstlisting}
+y = games['CUMULATIVE_FG_PCT']
+\end{lstlisting}
+Assigns the CUMULATIVE\textunderscore FG\textunderscore PCT column of games to a variable, y.
+\begin{lstlisting}
+plt.plot(x, y)
+\end{lstlisting}
+Generates a plot using x as the x-coordinates, and y as the y-coordinates.
+\begin{lstlisting}
+plt.xlabel('Games Played')
+\end{lstlisting}
+Creates a label for the x-axis of the plot.
+\begin{lstlisting}
+plt.ylabel('Cumulative FG%')
+\end{lstlisting}
+Creates a label for the plot's y-axis.
+\begin{lstlisting}
+plt.title(f'Cumulative FG% for {player_name} in the {season} season')
+\end{lstlisting}
+Generates a formatted string for the plot title using the player\textunderscore name and season input values.
+\begin{lstlisting}
+plt.xlim(x.min(), x.max())
+\end{lstlisting}
+Sets the lower and upper x-axis limits of the plot to the minimum and maximum values of x respectively.
+\begin{lstlisting}
+plt.ylim(0, y.max() + 5)
+\end{lstlisting}
+Sets the lower y-axis limit of the plot to 0 and the upper y-axis limit to the maximum value in y plus five (to ensure that the plot is not cut off visually).
+\begin{lstlisting}
+plt.grid(True)
+\end{lstlisting}
+Calls the grid function of Matplotlib, which sets visible grid lines for the plot.
+\begin{lstlisting}
+plt.show()
+\end{lstlisting}
+Displays the plot created.
+\subsubsection{Plotting Advanced Stats}
+\begin{lstlisting}
+plt.xticks(ticks, ['Q1 Start'] + [f'End Q{i}' for i in range(1, int(num_quarters) + 1)])
+\end{lstlisting}
+Creates tick labels for the plot's x-axis. The positions are provided by the ticks array. 'Q1 Start' is a static label for the first tick. A list comprehension generates labels for the remaining ticks by iterating over each quarter number from 1 to num\textunderscore quarters, creating a label for each quarter in the format 'End Q\{i\}'.
+\begin{lstlisting}
+x_on_court = player_pbp_on_court['SECONDS_ELAPSED']
+\end{lstlisting}
+Assigns the SECONDS\textunderscore ELAPSED column of the player\textunderscore pbp\textunderscore on\textunderscore court DataFrame to a variable, x\textunderscore on\textunderscore court.
+\begin{lstlisting}
+y_on_court = player_pbp_on_court['eFG%']
+\end{lstlisting}
+Assigns the eFG\% column of the player\textunderscore pbp\textunderscore on\textunderscore court DataFrame to a new variable, y\textunderscore on\textunderscore court.
+\begin{lstlisting}
+plt.plot(x_on_court, y_on_court, linestyle='-', label='On Court')
+\end{lstlisting}
+Generates a plot using x\textunderscore on\textunderscore court values as the x-coordinates, and y\textunderscore on\textunderscore court values as the y-coordinates. Also creates a label which will be used in the plot's legend to identify the line.
+\begin{lstlisting}
+label = 'On Bench'
+\end{lstlisting}
+Creates a variable, label.
+\begin{lstlisting}
+for e in bench_tuples:
+\end{lstlisting}
+Begins iteration on each tuple in bench\textunderscore tuples.
+\begin{lstlisting}
+    plt.plot([e[0], e[1]], [np.interp(e[0], x_on_court, y_on_court), np.interp(e[1], x_on_court, y_on_court)], linestyle='-', color='red', label= label)
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Plots a line between two points [e[0], e[1]] with y-values interpolated from the data points
+    (x_on_court, y_on_court). Sets the line style to solid, the color to red, and assigns a label to the plot.
+\end{lstlisting}
+\begin{lstlisting}
+    label = "_nolegend_"
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Tells matplotlib to exclude the variable, label, from the legend.
+\end{lstlisting}
+\begin{lstlisting}
+x = player_pbp['SECONDS_ELAPSED']
+\end{lstlisting}
+Assigns the SECONDS\textunderscore ELAPSED column of player\textunderscore pbp to a variable, x.
+\begin{lstlisting}
+plt.xlim(x.min(), x.max())
+\end{lstlisting}
+Sets the lower and upper x-axis limits of the plot to the minimum and maximum values of x respectively.
+\begin{lstlisting}
+plt.ylim(0, y_on_court.max() + 2)
+\end{lstlisting}
+Sets the lower y-axis limit of the plot to 0 and the upper y-axis limit to the maximum value of y\textunderscore on \textunderscore court plus two. A value of two is added to the upper y-axis limit to ensure that the plot is not cut off visually.
+\begin{lstlisting}
+plt.xlabel('Game Time')
+\end{lstlisting}
+Creates a label for the x-axis of the plot.
+\begin{lstlisting}
+plt.ylabel('eFG%')
+\end{lstlisting}
+Creates a label for the plot's y-axis.
+\begin{lstlisting}
+plt.title(f'Effective FG% Over the Game for {player_name}')
+\end{lstlisting}
+Generates a formatted string for the plot title using the player\textunderscore name input value.
+\begin{lstlisting}
+plt.legend()
+\end{lstlisting}
+Generates a legend for the plot that indicates how to differentiate between a player being on the court versus on the bench.
+\begin{lstlisting}
+plt.grid(True)
+\end{lstlisting}
+Calls the grid function of Matplotlib, which sets visible grid lines for the plot.
+\begin{lstlisting}
+plt.show()
+\end{lstlisting}
+Displays the plot created.
+\begin{lstlisting}
+plt.xticks(ticks, ['Q1 Start'] + [f'End Q{i}' for i in range(1, int(num_quarters) + 1)])
+\end{lstlisting}
+Creates tick labels for the plot's x-axis. The positions are provided by the ticks array. 'Q1 Start' is a static label for the first tick. A list comprehension generates labels for the remaining ticks by iterating over each quarter number from 1 to num\textunderscore quarters, creating a label for each quarter in the format 'End Q\{i\}'.
+\begin{lstlisting}
+\end{lstlisting}
+
+\begin{lstlisting}
+x_on_court = player_pbp_on_court['SECONDS_ELAPSED']
+\end{lstlisting}
+Assigns the SECONDS\textunderscore ELAPSED column of the player\textunderscore pbp\textunderscore on\textunderscore court DataFrame to a variable, x\textunderscore on\textunderscore court.
+\begin{lstlisting}
+y_on_court = player_pbp_on_court['TS%']
+\end{lstlisting}
+Assigns the TS\% column of the player\textunderscore pbp\textunderscore on\textunderscore court DataFrame to a new variable, y\textunderscore on\textunderscore court.
+\begin{lstlisting}
+plt.plot(x_on_court, y_on_court, linestyle='-', label='On Court')
+\end{lstlisting}
+Generates a plot using x\textunderscore on\textunderscore court values as the x-coordinates, and y\textunderscore on\textunderscore court values as the y-coordinates. Also creates a label which will be used in the plot's legend to identify the line.
+\begin{lstlisting}
+label = 'On Bench'
+\end{lstlisting}
+Creates a variable, label.
+\begin{lstlisting}
+for e in bench_tuples:
+\end{lstlisting}
+Begins iteration on each tuple in bench\textunderscore tuples.
+\begin{lstlisting}
+    plt.plot([e[0], e[1]], [np.interp(e[0], x_on_court, y_on_court), np.interp(e[1], x_on_court, y_on_court)], linestyle='-', color='red', label= label)
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Plots a line between two points [e[0], e[1]] with y-values interpolated from the data points
+    (x_on_court, y_on_court). Sets the line style to solid, the color to red, and assigns a label to the plot.
+\end{lstlisting}
+\begin{lstlisting}
+    label = "_nolegend_"
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Tells matplotlib to exclude the variable, label, from the legend.
+\end{lstlisting}
+\begin{lstlisting}
+x = player_pbp['SECONDS_ELAPSED']
+\end{lstlisting}
+Assigns the SECONDS\textunderscore ELAPSED column of player\textunderscore pbp to a variable, x.
+\begin{lstlisting}
+plt.xlim(x.min(), x.max())
+\end{lstlisting}
+Sets the lower and upper x-axis limits of the plot to the minimum and maximum values of x respectively.
+\begin{lstlisting}
+plt.ylim(0, y_on_court.max() + 2)
+\end{lstlisting}
+Sets the lower y-axis limit of the plot to 0 and the upper y-axis limit to the maximum value of y\textunderscore on \textunderscore court plus two. A value of two is added to the upper y-axis limit to ensure that the plot is not cut off visually.
+\begin{lstlisting}
+plt.xlabel('Game Time')
+\end{lstlisting}
+Creates a label for the x-axis of the plot.
+\begin{lstlisting}
+plt.ylabel('TS%')
+\end{lstlisting}
+Creates a label for the plot's y-axis.
+\begin{lstlisting}
+plt.title(f'True Shooting % Over the Game for {player_name}')
+\end{lstlisting}
+Generates a formatted string for the plot title using the player\textunderscore name input value.
+\begin{lstlisting}
+plt.legend()
+\end{lstlisting}
+Generates a legend for the plot that indicates how to differentiate between a player being on the court versus on the bench.
+\begin{lstlisting}
+plt.grid(True)
+\end{lstlisting}
+Calls the grid function of Matplotlib, which sets visible grid lines for the plot.
+\begin{lstlisting}
+plt.show()
+\end{lstlisting}
+Displays the plot created.
+\begin{lstlisting}
+plt.xticks(ticks, ['Q1 Start'] + [f'End Q{i}' for i in range(1, int(num_quarters) + 1)])
+\end{lstlisting}
+Creates tick labels for the plot's x-axis. The positions are provided by the ticks array. 'Q1 Start' is a static label for the first tick. A list comprehension generates labels for the remaining ticks by iterating over each quarter number from 1 to num\textunderscore quarters, creating a label for each quarter in the format 'End Q\{i\}'.
+\begin{lstlisting}
+x_on_court = player_pbp_on_court['SECONDS_ELAPSED']
+\end{lstlisting}
+Assigns the SECONDS\textunderscore ELAPSED column of the player\textunderscore pbp\textunderscore on\textunderscore court DataFrame to a variable, x\textunderscore on\textunderscore court.
+\begin{lstlisting}
+y_on_court = player_pbp_on_court['PIE']
+\end{lstlisting}
+Assigns the PIE column of the player\textunderscore pbp\textunderscore on\textunderscore court DataFrame to a new variable, y\textunderscore on\textunderscore court.
+\begin{lstlisting}
+plt.plot(x_on_court, y_on_court, linestyle='-', label='On Court')
+\end{lstlisting}
+Generates a plot using x\textunderscore on\textunderscore court values as the x-coordinates, and y\textunderscore on\textunderscore court values as the y-coordinates. Also creates a label which will be used in the plot's legend to identify the line.
+\begin{lstlisting}
+label = 'On Bench'
+\end{lstlisting}
+Creates a variable, label.
+\begin{lstlisting}
+for e in bench_tuples:
+\end{lstlisting}
+Begins iteration on each tuple in bench\textunderscore tuples.
+\begin{lstlisting}
+    plt.plot([e[0], e[1]], [np.interp(e[0], x_on_court, y_on_court), np.interp(e[1], x_on_court, y_on_court)], linestyle='-', color='red', label= label)
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Plots a line between two points [e[0], e[1]] with y-values interpolated from the data points
+    (x_on_court, y_on_court). Sets the line style to solid, the color to red, and assigns a label to the plot.
+\end{lstlisting}
+\begin{lstlisting}
+    label = "_nolegend_"
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Tells matplotlib to exclude the variable, label, from the legend.
+\end{lstlisting}
+\begin{lstlisting}
+x = player_pbp['SECONDS_ELAPSED']
+\end{lstlisting}
+Assigns the SECONDS\textunderscore ELAPSED column of player\textunderscore pbp to a variable, x.
+\begin{lstlisting}
+plt.xlim(x.min(), x.max())
+\end{lstlisting}
+Sets the lower and upper x-axis limits of the plot to the minimum and maximum values of x respectively.
+\begin{lstlisting}
+plt.ylim(y.min() - 20, y_on_court.max() + 2)
+\end{lstlisting}
+Sets the lower y-axis limit of the plot to 20 less than the minimum of y and the upper y-axis limit to the max of y\textunderscore on\textunderscore court plus two. A value of two is added to the upper y-axis limit to ensure that the plot is not cut off visually.
+\begin{lstlisting}
+plt.xlabel('Game Time')
+\end{lstlisting}
+Creates a label for the x-axis of the plot.
+\begin{lstlisting}
+plt.ylabel('PIE')
+\end{lstlisting}
+Creates a label for the plot's y-axis.
+\begin{lstlisting}
+plt.title(f'Player Impact Estimate Over the Game for {player_name}')
+\end{lstlisting}
+Generates a formatted string for the plot title using the player\textunderscore name input value.
+\begin{lstlisting}
+plt.legend()
+\end{lstlisting}
+Generates a legend for the plot that indicates how to differentiate between a player being on the court versus on the bench.
+\begin{lstlisting}
+plt.grid(True)
+\end{lstlisting}
+Calls the grid function of Matplotlib, which sets visible grid lines for the plot.
+\begin{lstlisting}
+plt.show()
+\end{lstlisting}
+Displays the plot created.
+\begin{lstlisting}
+plt.xticks(ticks, ['Q1 Start'] + [f'End Q{i}' for i in range(1, int(num_quarters) + 1)])
+\end{lstlisting}
+Creates tick labels for the plot's x-axis. The positions are provided by the ticks array. 'Q1 Start' is a static label for the first tick. A list comprehension generates labels for the remaining ticks by iterating over each quarter number from 1 to num\textunderscore quarters, creating a label for each quarter in the format 'End Q\{i\}'.
+\begin{lstlisting}
+x_on_court = player_pbp_on_court['SECONDS_ELAPSED']
+\end{lstlisting}
+Assigns the SECONDS\textunderscore ELAPSED column of the player\textunderscore pbp\textunderscore on\textunderscore court DataFrame to a variable, x\textunderscore on\textunderscore court.
+\begin{lstlisting}
+y_on_court = player_pbp_on_court['PER']
+\end{lstlisting}
+Assigns the PER column of the player\textunderscore pbp\textunderscore on\textunderscore court DataFrame to a new variable, y\textunderscore on\textunderscore court.
+\begin{lstlisting}
+plt.plot(x_on_court, y_on_court, linestyle='-', label='On Court')
+\end{lstlisting}
+Generates a plot using x\textunderscore on\textunderscore court values as the x-coordinates, and y\textunderscore on\textunderscore court values as the y-coordinates. Also creates a label which will be used in the plot's legend to identify the line.
+\begin{lstlisting}
+label = 'On Bench'
+\end{lstlisting}
+Creates a variable, label.
+\begin{lstlisting}
+for e in bench_tuples:
+\end{lstlisting}
+Begins iteration on each tuple in bench\textunderscore tuples.
+\begin{lstlisting}
+    plt.plot([e[0], e[1]], [np.interp(e[0], x_on_court, y_on_court), np.interp(e[1], x_on_court, y_on_court)], linestyle='-', color='red', label= label)
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Plots a line between two points [e[0], e[1]] with y-values interpolated from the data points
+    (x_on_court, y_on_court). Sets the line style to solid, the color to red, and assigns a label to the plot.
+\end{lstlisting}
+\begin{lstlisting}
+    label = "_nolegend_"
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Tells matplotlib to exclude the variable, label, from the legend.
+\end{lstlisting}
+\begin{lstlisting}
+x = player_pbp['SECONDS_ELAPSED']
+\end{lstlisting}
+Assigns the SECONDS\textunderscore ELAPSED column of player\textunderscore pbp to a variable, x.
+\begin{lstlisting}
+plt.xlim(x.min(), x.max())
+\end{lstlisting}
+Sets the lower and upper x-axis limits of the plot to the minimum and maximum values of x respectively.
+\begin{lstlisting}
+plt.ylim(y.min() - 5, y_on_court.max() + 2)
+\end{lstlisting}
+Sets the lower y-axis limit of the plot to five less than the minimum of y and the upper y-axis limit to the maximum value of y\textunderscore on \textunderscore court. A value of two is added to the upper y-axis limit to ensure that the plot is not cut off visually.
+\begin{lstlisting}
+plt.xlabel('Game Time')
+\end{lstlisting}
+Creates a label for the x-axis of the plot.
+\begin{lstlisting}
+plt.ylabel('PER')
+\end{lstlisting}
+Creates a label for the plot's y-axis.
+\begin{lstlisting}
+plt.title(f'Player Efficiency Rating Over the Game for {player_name}')
+\end{lstlisting}
+Generates a formatted string for the plot title using the player\textunderscore name input value.
+\begin{lstlisting}
+plt.legend()
+\end{lstlisting}
+Generates a legend for the plot that indicates how to differentiate between a player being on the court versus on the bench.
+\begin{lstlisting}
+plt.grid(True)
+\end{lstlisting}
+Calls the grid function of Matplotlib, which sets visible grid lines for the plot.
+\begin{lstlisting}
+plt.show()
+\end{lstlisting}
+Displays the plot created.
+\begin{lstlisting}
+plt.xticks(ticks, ['Q1 Start'] + [f'End Q{i}' for i in range(1, int(num_quarters) + 1)])
+\end{lstlisting}
+Creates tick labels for the plot's x-axis. The positions are provided by the ticks array. 'Q1 Start' is a static label for the first tick. A list comprehension generates labels for the remaining ticks by iterating over each quarter number from 1 to num\textunderscore quarters, creating a label for each quarter in the format 'End Q\{i\}'.
+\begin{lstlisting}
+x_on_court = player_pbp_on_court['SECONDS_ELAPSED']
+\end{lstlisting}
+Assigns the SECONDS\textunderscore ELAPSED column of the player\textunderscore pbp\textunderscore on\textunderscore court DataFrame to a variable, x\textunderscore on\textunderscore court.
+\begin{lstlisting}
+y_on_court = player_pbp_on_court['TENDEX']
+\end{lstlisting}
+Assigns the TENDEX column of the player\textunderscore pbp\textunderscore on\textunderscore court DataFrame to a new variable, y\textunderscore on\textunderscore court.
+\begin{lstlisting}
+plt.plot(x_on_court, y_on_court, linestyle='-', label='On Court')
+\end{lstlisting}
+Generates a plot using x\textunderscore on\textunderscore court values as the x-coordinates, and y\textunderscore on\textunderscore court values as the y-coordinates. Also creates a label which will be used in the plot's legend to identify the line.
+\begin{lstlisting}
+label = 'On Bench'
+\end{lstlisting}
+Creates a variable, label.
+\begin{lstlisting}
+for e in bench_tuples:
+\end{lstlisting}
+Begins iteration on each tuple in bench\textunderscore tuples.
+\begin{lstlisting}
+    plt.plot([e[0], e[1]], [np.interp(e[0], x_on_court, y_on_court), np.interp(e[1], x_on_court, y_on_court)], linestyle='-', color='red', label= label)
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Plots a line between two points [e[0], e[1]] with y-values interpolated from the data points
+    (x_on_court, y_on_court). Sets the line style to solid, the color to red, and assigns a label to the plot.
+\end{lstlisting}
+\begin{lstlisting}
+    label = "_nolegend_"
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Tells matplotlib to exclude the variable, label, from the legend.
+\end{lstlisting}
+\begin{lstlisting}
+x = player_pbp['SECONDS_ELAPSED']
+\end{lstlisting}
+Assigns the SECONDS\textunderscore ELAPSED column of player\textunderscore pbp to a variable, x.
+\begin{lstlisting}
+y = player_pbp['TENDEX']
+\end{lstlisting}
+Assigns the TENDEX column of player\textunderscore pbp to a variable, y.
+\begin{lstlisting}
+plt.xlim(x.min(), x.max())
+\end{lstlisting}
+Sets the lower and upper x-axis limits of the plot to the minimum and maximum values of x respectively.
+\begin{lstlisting}
+plt.ylim(y.min() - 0.002, y.max() + 0.002)
+\end{lstlisting}
+Sets the lower y-axis limit of the plot to 0.002 less than the minimum of y. Sets the upper y-axis limit of the plot to 0.002 greater than the maximum of y.
+\begin{lstlisting}
+plt.xlabel('Game Time')
+\end{lstlisting}
+Creates a label for the x-axis of the plot.
+\begin{lstlisting}
+plt.ylabel('Tendex')
+\end{lstlisting}
+Creates a label for the plot's y-axis.
+\begin{lstlisting}
+plt.title(f'Tendex Over the Game for {player_name}')
+\end{lstlisting}
+Generates a formatted string for the plot title using the player\textunderscore name input value.
+\begin{lstlisting}
+plt.legend()
+\end{lstlisting}
+Generates a legend for the plot that indicates how to differentiate between a player being on the court versus on the bench.
+\begin{lstlisting}
+plt.grid(True)
+\end{lstlisting}
+Calls the grid function of Matplotlib, which sets visible grid lines for the plot.
+\begin{lstlisting}
+plt.show()
+\end{lstlisting}
+Displays the plot created.
+
+\subsection{Determining Advanced Stat Formulas Using Regression}
+\subsubsection{Data Collection}
+\begin{lstlisting}
+def retry(func, retries=10):
+    def retry_wrapper(*args, **kwargs):
+        attempts = 0
+        while attempts < retries:
+            try:
+                return func(*args, **kwargs)
+            except requests.exceptions.RequestException as e:
+                print(e)
+            time.sleep(np.random.normal(2, 0.25, 1)[0])
+            attempts += 1
+    return retry_wrapper
+\end{lstlisting}
+Our retry wrapper sleeps a random amount of time based on a normal distribution with mean 2 and standard deviation 0.25 when an API call results in an exception. The function will retry a call up to 10 times.
+\begin{lstlisting}
+@retry
+def get_full_season_game_ids(season_str):
+  single_season_log = TeamGameLogs(season_nullable=season_str, season_type_nullable="Regular Season", league_id_nullable="00")
+  single_season_logs = single_season_log.get_data_frames()[0]
+  return np.unique(single_season_logs["GAME_ID"].to_list())
+\end{lstlisting}
+This function \textit{get_full_season_game_ids} takes in a string in the form "YYYY-YY" which represents an NBA season. The function returns a list with the ID of every game played in that regular season by accessing the \textit{TeamGameLogs} endpoint of the NBA API. Tagged with the \textit{retry} annotation to handle kickback from the API.
+\begin{lstlisting}
+@retry
+def get_adv_BS(game):
+  return boxscoreadvancedv3.BoxScoreAdvancedV3(game).data_sets[0].get_data_frame()
+\end{lstlisting}
+This function \textit{get_adv_BS} takes in an int which represents a game id. The function returns a Pandas data frame containing the advanced stats of every player who played in the game by accessing the \textit{BoxScoreAdvancedV3} endpoint of the NBA API. Tagged with the \textit{retry} annotation to handle kickback from the API.
+\begin{lstlisting}
+@retry
+def get_trad_BS(game):
+  return boxscoretraditionalv3.BoxScoreTraditionalV3(game).data_sets[0].get_data_frame()
+\end{lstlisting}
+This function \textit{get_trad_BS} takes in an int which represents a game id. The function returns a Pandas data frame containing the traditional stats of every player who played in the game by accessing the \textit{BoxScoreTraditionalV3} endpoint of the NBA API. Tagged with the \textit{retry} annotation to handle kickback from the API.
+\begin{lstlisting}
+game_ids = get_full_season_game_ids("2022-23")
+\end{lstlisting}
+Call \textit{get_full_season_game_ids} on the 2022-23 season and store the resulting list in new variable \textit{game_ids}.
+\begin{lstlisting}
+adv_BSs = []
+\end{lstlisting}
+Create variable \textit{adv_BSs} with default value of an empty list. This will be used to hold a list of all the different advanced stats.
+\begin{lstlisting}
+for game in tqdm(game_ids):
+\end{lstlisting}
+Start looping through every element in \textit{game_ids} where the variable \textit{game} stores the current game's ID. The function \textit{tqdm} is called to create the progress bar for the loop.
+\begin{lstlisting}
+    adv_BSs.append(get_adv_BS(game))
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Call @\textit{get_adv_BS}@ with the current game's ID and appends the resulting data frame to the list @\textit{adv_BSs}@.
+\end{lstlisting}
+\begin{lstlisting}
+adv_BS_df = pd.concat(adv_BSs)
+\end{lstlisting}
+Using Pandas function \textit{concat}, concatenate every data frame in list \textit{adv_BSs} into one data frame with all advanced stats for every player in every game in the 2022-23 NBA regular season, stored in new variable \textit{adv_BS_df}.
+\begin{lstlisting}
+adv_BS_df.to_csv("adv_BS_2022_23.csv")
+\end{lstlisting}
+Using Pandas function \textit{to_csv}, save the data frame \textit{adv_BS_df} locally as a comma serperated values (CSV) file named \textit{adv_BS_2022_23.csv} so it can be easily accessed in the future.
+\begin{lstlisting}
+trad_BSs = []
+for game in tqdm(game_ids):
+    trad_BSs.append(get_trad_BS(game))
+trad_BS_df = pd.concat(trad_BSs)
+trad_BS_df.to_csv("trad_BS_2022_23.csv")
+\end{lstlisting}
+Repeat the process to gather all traditional stats for every player in every game from the 2022-23 NBA regular season and save the resulting data frame locally as \textit{trad_BS_2022_23.csv}.
+\begin{lstlisting}
+adv_BS_df = pd.read_csv("adv_BS_2022_23.csv")
+trad_BS_df = pd.read_csv("trad_BS_2022_23.csv")
+\end{lstlisting}
+Using Pandas function \textit{read_csv}, read the advanced and traditional stats data frames back into the respective variables \textit{adv_BS_df} and \textit{trad_BS_df}.
+\subsubsection{True Shooting Percentage Regression}
+\begin{lstlisting}
+full_BS_df = trad_BS_df.merge(adv_BS_df, on= ["gameId", "personId"], how= "inner")[["gameId", "personId", "nameI_x", "fieldGoalsAttempted", "freeThrowsAttempted", "points", "trueShootingPercentage"]]
+\end{lstlisting}
+Using Pandas function \textit{merge}, inner join the traditional and advanced stats data frames based on the game's ID and the player's ID. After joining the data frames, compress the data to only keep columns that are used in calculating true shooting percentage and store the resulting data frame in new variable \textit{full_BS_df}.
+\begin{lstlisting}
+X = full_BS_df[["fieldGoalsAttempted", "freeThrowsAttempted", "points"]]
+\end{lstlisting}
+Get the stats true shooting percentage is calculated from and store them in new variable \textit{X} for regression.
+\begin{lstlisting}
+y = full_BS_df["trueShootingPercentage"]
+\end{lstlisting}
+Get true shooting percentage and store it in new variable \textit{y} for regression.
+\begin{lstlisting}
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
+\end{lstlisting}
+Using Sci-Kit Learn function \textit{train_test_split} randomly split the data into train and test group where the training group contains 90\% of the original data. They are stored in new variables \textit{X_train}, \textit{X_test}, \textit{y_train}, and \textit{y_test}.
+\begin{lstlisting}
+lin_reg = LinearRegression()
+\end{lstlisting}
+Create a Sci-Kit Learn \textit{LinearRegression} model and store it in the new variable \textit{lin_reg}.
+\begin{lstlisting}
+lin_reg.fit(X_train, y_train)
+\end{lstlisting}
+Using Sci-Kit Learn function \textit{fit}, train the linear regression model on the designated training data.
+\begin{lstlisting}
+print(f"Variable weights: {dict(zip(X.columns, lin_reg.coef_))}")
+\end{lstlisting}
+Print out the variable's weights assigned by the linear regression model by creating a dictionary where the keys are the variables and the values are their weights from the model's field \textit{coef_}.
+\begin{lstlisting}
+print(f"Intercept: {lin_reg.intercept_}")
+\end{lstlisting}
+Print out the model's intercept from its field \textit{intercept_}.
+\begin{lstlisting}
+print(f"R-squared score: {lin_reg.score(X_test, y_test)}")
+\end{lstlisting}
+Using Sci-Kit Learn function \textit{score}, print out the model's $R^2$ score on the designated test data.
+\begin{lstlisting}
+print(f"Mean absolute error: {np.mean(abs(lin_reg.predict(X_test)- y_test))}")
+\end{lstlisting}
+Using Sci-Kit Learn function \textit{predict}, print out the manually calculated mean absolute error on the designated test data.
+\begin{lstlisting}
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
+\end{lstlisting}
+Randomly split the original data into new train and test sets.
+\begin{lstlisting}
+rf_reg = RandomForestRegressor()
+\end{lstlisting}
+Create a Sci-Kit Learn \textit{RandomForestRegressor} model and store it in the new variable \textit{rf_reg}.
+\begin{lstlisting}
+rf_reg.fit(X_train, y_train)
+\end{lstlisting}
+Using Sci-Kit Learn function \textit{fit}, train the random forest regressor model on the designated training data.
+\begin{lstlisting}
+print(f"Variable importance: {dict(zip(X.columns, rf_reg.feature_importances_))}")
+\end{lstlisting}
+Print out the feature's importances assigned by the random forest regressor model by creating a dictionary where the keys are the features and the values are their importances from the model's field \textit{feature_importances_}.
+\begin{lstlisting}
+print(f"R-squared score: {rf_reg.score(X_test, y_test)}")
+\end{lstlisting}
+Using Sci-Kit Learn function \textit{score}, print out the model's $R^2$ score on the designated test data.
+\begin{lstlisting}
+print(f"Mean absolute error: {np.mean(abs(rf_reg.predict(X_test)- y_test))}")
+\end{lstlisting}
+Using Sci-Kit Learn function \textit{predict}, print out the manually calculated mean absolute error on the designated test data.
+\subsubsection{PPA Regression}
+\begin{lstlisting}
+PPA_df = pd.read_csv("2022_23_PPA.csv")
+\end{lstlisting}
+Read player production average (PPA) data from \textit{2022_23_PPA.csv} which was obtained from Kevin Broom's website. (Broom, 2023) It contains the PPA value for every player whio played in an NBA game in the 2022-23 season before the all star break. Store the resulting data frame in new variable \textit{PPA_df}.
+\begin{lstlisting}
+PPA_df = PPA_df[["Player", "Tm", "PPA"]]
+\end{lstlisting}
+Compress the PPA data frame to only the columns \textit{Player}, \textit{Tm}, and \textit{PPA}.
+\begin{lstlisting}
+PPA_df["player_id"] = PPA_df["Player"].apply(get_player_id)
+\end{lstlisting}
+Using Pandas function \textit{apply} with custom function \textit{get_player_id} on the PPA data frame along the first axis, create new column \textit{player_id} by finding the corresponding ID for every player.
+\begin{lstlisting}
+PPA_df_safe = PPA_df.dropna(subset= ["player_id"])
+\end{lstlisting}
+Player names with accents and  apostrophes in the PPA data from Kevin Broom's website did not match with the names in the NBA API. Therefore we were not able to match them to the correct player ID. We decided to remove these rows from the data frame and store the resulting data frame in new variable \textit{PPA_df_safe}.
+\begin{lstlisting}
+PPA_df_safe = PPA_df_safe.astype({"player_id": int})
+\end{lstlisting}
+Cast the player ID column from type String to int.
+\begin{lstlisting}
+PPA_df_safe[["avg_min", "avg_pts", "avg_fga", "avg_oreb", "avg_dreb", "avg_ast", "avg_stl", "avg_blk", "avg_tov", "avg_pf", "avg_dr", "starts"]] = np.nan
+\end{lstlisting}
+Create new columns for the stats that are used in the calculation of PPA. Set the default value of all the columns to be empty, they will be filled in later.
+\begin{lstlisting}
+single_season_logs = TeamGameLogs(season_nullable="2022-23", season_type_nullable='Regular Season', league_id_nullable='00').get_data_frames()[0]
+\end{lstlisting}
+Using the NBA API endpoint \textit{TeamGameLogs}, get information about every NBA regular season game from the 2022-23 season. Store the resulting data frame in new variable \textit{single_season_logs}.
+\begin{lstlisting}
+before_AS_game_ids = np.unique(single_season_logs[(single_season_logs["GAME_DATE"] > "2022-10-17") & (single_season_logs["GAME_DATE"] < "2023-02-17")]["GAME_ID"])
+\end{lstlisting}
+Filter the data frame to only include the game played before the all star break in the 2022-23 season and store the ID of every game in new variable \textit{before_AS_game_ids}.
+\begin{lstlisting}
+statlines = trad_BS_df.merge(adv_BS_df, on= ["gameId", "personId"], how= "inner")
+\end{lstlisting}
+Using Pandas function \textit{merge}, inner join the traditional and advanced stats data frames based on the game's ID and the player's ID. Store the resulting data frame in new variable \textit{statlines}.
+\begin{lstlisting}
+statlines = statlines[statlines["gameId"].isin(before_AS_game_ids.astype(int))]
+\end{lstlisting}
+Filter the data frame to only include games before the all star break.
+\begin{lstlisting}
+statlines.dropna(subset= ["minutes_x"], inplace= True)
+\end{lstlisting}
+Remove all rows where the minutes stat is empty implying the player never checked into the game.
+\begin{lstlisting}
+def get_minutes(row):
+    if type(row["minutes_x"]) == str:
+        mins, secs = row["minutes_x"].split(":")
+        mins = int(mins)
+        secs = int(secs)
+        return mins + secs/60
+    return row["minutes_x"]
+\end{lstlisting}
+Create function \textit{get_minutes} that takes in a row of the stat lines data frame and converts the string representing minutes played into a float.
+\begin{lstlisting}
+statlines["minutes_float"] = statlines.apply(get_minutes, axis= 1)
+\end{lstlisting}
+Using Pandas function \textit{apply} with custom function \textit{get_minutes} on the stat lines data frame along the first axis, create new column \textit{minutes_float}.
+\begin{lstlisting}
+@retry
+def get_game_rotation(game):
+  dfs = gamerotation.GameRotation(game_id= game).get_data_frames()
+  return pd.concat(dfs)
+\end{lstlisting}
+This function \textit{get_game_rotation} takes in a game's ID and return a dataframe represting all substituations made by either team in the game using the NBA API endpoint \textit{GameRotation}.
+\begin{lstlisting}
+game_subs_dfs = []
+for game in tqdm(before_AS_game_ids):
+  game_subs_dfs.append(get_game_rotation(game))
+game_subs_df = pd.concat(game_subs_dfs)
+game_subs_df.to_csv("PPA_subs.csv")
+\end{lstlisting}
+Repeat the flow previously used to gather all box score stats to create data frame with all subs in every game before the all star break in the 2022-23 season. Store the data frame in new variable \texit{game_subs_df} and save it locally as \textit{PPA_subs.csv}.
+\begin{lstlisting}
+game_subs_df = pd.read_csv("PPA_subs.csv")
+\end{lstlisting}
+Read the complete subs data back into variable \textit{game_subs_df}.
+\begin{lstlisting}
+def add_starts(row):
+\end{lstlisting}
+Begin definition of new function \textit{add_starts} which takes in a row of the stat lines data frame.
+\begin{lstlisting}
+    game = row["gameId"]
+    player = row["personId"]
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Get the IDs of the current row's game and player and store them in respective new variables @\textit{game}@ and
+    @\textit{player}@.
+\end{lstlisting}
+\begin{lstlisting}
+    player_subs = game_subs_df[(game_subs_df["GAME_ID"] == f"00{game}") & (game_subs_df["PERSON_ID"] == player)]
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Filter the substitutions data frame to only include substitutions for the current row's game and player.
+    Store the resulting data fame in new variable @\textit{player_subs}@.
+\end{lstlisting}
+\begin{lstlisting}
+    if len(player_subs) > 0 and player_subs.iloc[0]["IN_TIME_REAL"] == 0.0:
+        return 1
+    return 0
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    If the current player was subbed in at time 0.0 return a 1 signifying that they started the game.
+    Otherwise return a 0.
+\end{lstlisting}
+\begin{lstlisting}
+def get_stats(row):
+    player = int(row["player_id"])
+    team = row["Tm"]
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Create function @\textit{get_stats}@ and variables @\textit{player}@ and @\textit{team}@ which represent the current row's player and team.
+\end{lstlisting}
+\begin{lstlisting}
+    filtered_statlines = statlines[(statlines["personId"] == player) & (statlines["teamTricode_x"] == team)]
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Filter the stat lines data frame to only include the current row's player and team. This is necessary
+    because if a player played on multiple teams they have separate PPA values. Store the resulting data frame
+    in new variable @\textit{filtered_statlines}@.
+\end{lstlisting}
+\begin{lstlisting}
+    avg_stats = filtered_statlines.agg({
+        "minutes_float": "mean",
+        "points": "mean",
+        "fieldGoalsAttempted": "mean",
+        "reboundsOffensive": "mean",
+        "reboundsDefensive": "mean",
+        "assists": "mean",
+        "steals": "mean",
+        "blocks": "mean",
+        "turnovers": "mean",
+        "foulsPersonal": "mean",
+        "defensiveRating": "mean",
+        "started?": "sum"
+    })
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Using Pandas function @\textit{agg}@, aggregate the filtered stat lines to get the average minutes, points, field goal
+    attempts, offensive and defensive rebounds, assists, steals, blocks, turnovers, personal fouls, and
+    defensive rating, and the total number of games started. Store the resulting series in new variable @\textit{avg_stats}@.
+\end{lstlisting}
+\begin{lstlisting}
+    row[["avg_min", "avg_pts", "avg_fga", "avg_oreb", "avg_dreb", "avg_ast", "avg_stl", "avg_blk", "avg_tov", "avg_pf", "avg_dr", "starts"]] = avg_stats.to_list()
+    return row
+\end{lstlisting}
+\begin{lstlisting}[language= , basicstyle=\fontfamily{cmr}\selectfont, escapeinside={@}{@}, aboveskip=0mm, belowskip=0mm]
+    Set the current row's average stats the result of the calculations in the last line. Return the updated
+    version of the current row.
+\end{lstlisting}
+\begin{lstlisting}
+PPA_df_safe = PPA_df_safe.apply(get_stats, axis= 1)
+\end{lstlisting}
+Using Pandas function \textit{apply} with custom function \textit{get_stats} on the PPA data frame along the first axis, gather every player's average stats.
+\begin{lstlisting}
+PPA_df_safe.dropna(inplace= True)
+\end{lstlisting}
+Remove any more rows that still have empty values.
+\begin{lstlisting}
+X = PPA_df_safe[['avg_min', 'avg_pts', 'avg_fga', 'avg_oreb', 'avg_dreb', 'avg_ast', 'avg_stl', 'avg_blk', 'avg_tov', 'avg_pf', 'avg_dr', "starts"]]
+\end{lstlisting}
+Get the stats PPA is calculated from and store them in new variable \textit{X} for regression.
+\begin{lstlisting}
+y = PPA_df_safe["PPA"]
+\end{lstlisting}
+Get PPA and store it in new variable \textit{y} for regression.
+\begin{lstlisting}
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
+lin_reg = LinearRegression()
+lin_reg.fit(X_train, y_train)
+print(f"Varaible weights: {dict(zip(X.columns, lin_reg.coef_))}")
+print(f"Intercept: {lin_reg.intercept_}")
+print(f"R-squared score: {lin_reg.score(X_test, y_test)}")
+print(f"Mean absolute error: {np.mean(abs((X_test @ lin_reg.coef_ + lin_reg.intercept_) - y_test))}")
+\end{lstlisting}
+Randomly split the data into training and testing sets. Create and train Sci-Kit Learn linear regression model. Print model details and some summary statistics of the model. Identical code to true shooting percentage linear regression.
+\begin{lstlisting}
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
+rf_reg = RandomForestRegressor()
+rf_reg.fit(X_train, y_train)
+print(f"Variable importance: {dict(zip(X.columns, rf_reg.feature_importances_))}")
+print(f"R-squared score: {rf_reg.score(X_test, y_test)}")
+print(f"Mean absolute error: {np.mean(abs(rf_reg.predict(X_test)- y_test))}")
+\end{lstlisting}
+Randomly split the data into training and testing sets. Create and train Sci-Kit Learn random forest regressor model. Print model details and some summary statistics of the model. Identical code to true shooting percentage random forest regressor.
+\newpage
+
+\section{Advanced Stat Formulas}
+The following abbreviations are used in these formulas:\\
+\\
+FGA = field goals attempted\\
+FG = field goals made\\
+FTA = free throws attempted\\
+FT = free throws made\\
+3P = three-pointers made\\
+PTS = points scored\\
+RB = rebounds\\
+DRB = defensive rebounds\\
+ORB = offensive rebounds\\
+TRB = total rebounds\\
+PF = personal fouls\\
+(Game) Pace = a team's number of possessions per game\\
+min = number of minutes played\\
+tm refers to the statistic on a team-wide level\\
+lg refers to the statistic on a league-wide level\\
+Gm refers to the total occurrences of a statistic (sum of both teams) in the game
+
+\subsection{Effective Field Goal \% (eFG\%)}
+Adjusts FG\% to account for three-pointers, and shows the FG\% that a player who shoots only two-pointers would have to shoot at to match the output of a player who shoots both twos and threes.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\linewidth]{Images//formulas/efg_formula.png}
+    \label{fig:formula-1}
+\end{figure}
+
+\subsection{True Shooting \% (TS\%)}
+Measures a player’s shooting efficiency, accounting for all field goals and free throws.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\linewidth]{Images//formulas/ts_formula.png}
+    \label{fig:formula-2}
+\end{figure}
+
+\subsection{Unadjusted Player Efficiency Rating (uPER)}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{Images//formulas/uPER_formula.png}
+    \label{fig:formula-3}
+\end{figure}
+
+\subsubsection{Factor}
+Scales PER to match typical league-wide value.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\linewidth]{Images//formulas/factor_formula.png}
+    \label{fig:formula-4}
+\end{figure}
+
+\subsubsection{Value of Possession (VOP)}
+Calculates average points per possession.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\linewidth]{Images//formulas/vop_formula.png}
+    \label{fig:formula-5}
+\end{figure}
+
+\subsubsection{Defensive Rebound \% (DRBP)}
+Calculates percentage of total rebounds that are defensive.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.3\linewidth]{Images//formulas/drbp_formula.png}
+    \label{fig:formula-6}
+\end{figure}
+
+\subsubsection{Player Efficiency Rating (PER)}
+Reduces all of a player’s positive (made shots, assists, rebounds, blocks, steals) and negative (missed shots, turnovers, personal fouls) contributions into one value and adjusts for team pace (number of possessions) and minutes played.
+The statistic follows a scale where a PER of 0 represents a player who won’t stick in the league, 15 represents an average player, and 35+ represents an all-time great season.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\linewidth]{Images//formulas/per_formula.png}
+    \label{fig:formula-7}
+\end{figure}
+
+\subsection{Player Impact Estimate (PIE)}
+Measures a player’s overall statistical contribution to the game.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\linewidth]{Images//formulas/pie_formula.png}
+    \label{fig:formula-8}
+\end{figure}
+
+\subsection{Tendex}
+Evaluates player efficiency using box score stats, minutes played, and game pace (number of possessions for their team).
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{Images//formulas/tendex_formula.png}
+    \label{fig:formula-9}
+\end{figure}
+
+\subsection{Box Plus-Minus (BPM)}
+Uses team and individual box score stats to estimate player performance relative to the NBA average.\\
+\\
+BPM = Raw BPM + team adjusted\\
+\\
+Raw BPM = scoring + ball handling + rebounding + defense + position constant\\
+\\
+team adjusted = (Adjusted team rating - [sum(raw BPM * \%MIN) for all players on team]) / 5 = \\
+(team rating + lead bonus - [sum(raw BPM * \%MIN) for all players on team]) / 5\\
+\\
+lead bonus: (0.35 / 2) * AVG. lead\\
+AVG. lead = team rating * PACE / 200
+
+\subsection{Value Over Replacement Player (VORP)}
+Converts BPM into an estimate of each player’s overall contribution to the team, measured against a replacement player (one on a minimum salary or not a normal member of the rotation). The formula yields the number of points the player is producing over a replacement player, per 100 team possessions over an entire season.\\
+\\
+BPM of -2 is considered replacement level
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{Images//formulas/vorp_formula.png}
+    \label{fig:formula-10}
+\end{figure}
+\newpage
+
+\section{Example Plots}
+All game-level plots are for Nikola Jokic in the playoff game against the Minnesota Timberwolves on May 10, 2024.
+
+\subsection{Traditional Stat Flow Graphs}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\linewidth]{Images//plots/flow_graph_traditional.png}
+    \caption{Flow Graph of a Traditional Stat}
+    \label{fig:1}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\linewidth]{Images//plots/flow_graph_specific_time_traditional.png}
+    \caption{Flow Graph of a Traditional Stat for a Specific Time Frame}
+    \label{fig:2}
+\end{figure}
+
+\subsection{Shooting \% Flow Graphs}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\linewidth]{Images//plots/flow_graph_free_throw.png}
+    \caption{Flow Graph of Free Throw Percentage}
+    \label{fig:3}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\linewidth]{Images//plots/flow_graph_field_goal.png}
+    \caption{Flow Graph of Field Goal Percentage}
+    \label{fig:4}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\linewidth]{Images//plots/flow_graph_three_point.png}
+    \caption{Flow Graph of 3PT Field Goal Percentage}
+    \label{fig:5}
+\end{figure}
+
+\subsection{Field Goal \% Flow Graphs Over a Season}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\linewidth]{Images//plots/flow_graph_season_field_goal.png}
+    \caption{Flow Graph of Field Goal \% for Each Game in a Season}
+    \label{fig:6}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\linewidth]{Images//plots/flow_graph_cumulative_field_goal.png}
+    \caption{Flow Graph of Cumulative Field Goal \% over a Season}
+    \label{fig:7}
+\end{figure}
+
+\subsection{Advanced Stat Flow Graphs}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\linewidth]{Images//plots/flow_graph_efg.png}
+    \caption{Flow Graph of Effective Field Goal \% (eFG\%)}
+    \label{fig:enter-label}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\linewidth]{Images//plots/flow_graph_ts.png}
+    \caption{Flow Graph of True Shooting \% (TS\%)}
+    \label{fig:9}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\linewidth]{Images//plots/flow_graph_per.png}
+    \caption{Flow Graph of Player Efficiency Rating (PER)}
+    \label{fig:10}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\linewidth]{Images//plots/flow_graph_pie.png}
+    \caption{Flow Graph of Player Impact Estimate (PIE)}
+    \label{fig:11}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\linewidth]{Images//plots/flow_graph_tendex.png}
+    \caption{Flow Graph of Tendex}
+    \label{fig:12}
+\end{figure}
+\newpage
+\section{Regression Findings}
+\subsection{True Shooting Percentage}
+As seen earlier true shooting percentage measures a player’s shooting efficiency, accounting for all field goals and free throws. It is calculated by the formula:
+\begin{center}
+    $TS\%=\frac{PTS}{2(FGA+(0.44*FTA))}$
+\end{center}
+\subsubsection*{Linear Regression}
+Linear regression takes a data set with one feature identified as the dependent variable and constructs a line of best fit based on all of the available data. We ran linear regression to try to approximate the non-linear formula for true shooting percentage with a linear combination of all of its parameters, field goal attempts, free throw attempts, and points. The following are the printed outputs described in the code documentation.\\ \\
+Variable weights: \{'fieldGoalsAttempted': -0.036722156647872976, 'freeThrowsAttempted': -0.027006514063110883, 'points': 0.05029835338795257\}\\
+Intercept: 0.2975036629912753\\
+R-squared score: 0.4305983507796547\\
+Mean absolute error: 0.1947803191669215\\ \\
+The actual linear function approximation is\\
+\begin{center}
+    $TS\%\approx -0.04*FGA-0.03*FTA+0.05*PTS+0.3$
+\end{center}
+\subsubsection*{Random Forest Regressor}
+Since we are trying to approximate a non-linear function, a linear regression model will not provide the best results. A random forest regressor completes the same task as linear regression but takes a different approach. A random forest is made up of several decision tree regressors and takes the average of all trees' results. Each decision tree is trained individually on separate data sets where they learn to best fit their data. Combining many trees in a random forest can be very powerful. The following are the printed outputs described in the code documentation.\\ \\
+Variable importance: \{'fieldGoalsAttempted': 0.1575033177502875, 'freeThrowsAttempted': 0.03168508348223556, 'points': 0.810811598767477\}\\
+R-squared score: 0.9995397951646936\\
+Mean absolute error: 0.001482868462757852\\ \\
+There is no exact observable formula for the random forest regressor.\\ \\
+In conclusion, due to the formula for true shooting percentage being non-linear, the linear regression model performed very poorly and essentially predicted the mean for every player. However, the random forest regressor was able to capture the equation much better and was able to predict the true shooting percentage with almost perfect accuracy.
+\subsection{Player Production Average (PPA)}
+PPA was created to measure a player’s contribution to team success by Kevin Broom, the Deputy Managing Editor at Bullets Forever. According to the blog post on his website, PPA is a “linear weighted metric” similar to PER, VORP, and TENDEX, based on the following stats. (Broom, 2023)
+\begin{itemize}
+    \item points
+    \item rebounds (offensive and defensive weighed differently)
+    \item assists
+    \item steals
+    \item blocks
+    \item shot attempts
+    \item turnovers
+    \item personal fouls
+    \item starts
+    \item minutes
+    \item on-court team defensive rating
+\end{itemize}
+
+\subsubsection*{Linear Regression}
+Varaible weights: \{'avg_min': -0.6626395813536263, 'avg_pts': 19.191682509708343, 'avg_fga': -17.753498417480372, 'avg_oreb': 14.4027490272362, 'avg_dreb': 4.323264336113572, 'avg_ast': 11.881103314717462, 'avg_stl': 35.34092792177506, 'avg_blk': 13.841215644855675, 'avg_tov': -42.95466870352586, 'avg_pf': -17.705625522460082, 'avg_dr': -0.3581129550265998, 'starts': 0.1795622036672473\}\\
+Intercept: 87.82363560625562\\
+R-squared score: 0.8162779448902899\\
+Mean absolute error: 15.353183207480331 \\
+\begin{center}
+    $PPA \approx -0.66*MPG+19.19*PPG-17.75*FGAPG+14.4*ORPG+4.32*DRPF+11.88*APG+35.34*SPG+13.84*BPG-42.95*TVPG-17.71*PFPG-0.34AVG\_DR+0.18*Starts+87.82$
+\end{center}
+\subsubsection*{Random Forest Regressor}
+Variable importance: \{'avg_min': 0.12259244475772, 'avg_pts': 0.3646383053337357, 'avg_fga': 0.036049550131544296, 'avg_oreb': 0.037650529160927586, 'avg_dreb': 0.09334635280321339, 'avg_ast': 0.019640684908651285, 'avg_stl': 0.10085481890361417, 'avg_blk': 0.016658579199153076, 'avg_tov': 0.07515073196397402, 'avg_pf': 0.05440603975236288, 'avg_dr': 0.057110592895497116, 'starts': 0.021901370189606403\}\\
+R-squared score: 0.8306675130536879\\
+Mean absolute error: 12.744782608695653 \\ \\
+In conclusion, with a roughly linear equation to approximate, the linear regression model performs significantly better and even outperforms the random forest regressor. While PPA's real equation is unknown to us we were able to create a good prediction from our linear regression model.
+
+\newpage
+\section*{References}
+
+\urlstyle{same}
+
+\begingroup
+\renewcommand{\section}[2]{}%
+\begin{thebibliography}{9}
+
+\bibitem{bpm}
+``About Box plus/Minus (BPM).'' \textit{Basketball}. \url{www.basketball-reference.com/about/bpm2.html}. Accessed 10 May 2024.
+
+\bibitem{ppa}
+Broom, Kevin.``NBA Player Production Average" \textit{kevinbroom.com}, 01 Mar. 2023. \url{https://kevinbroom.com/ppa/}
+
+\bibitem{efg}
+``Effective Field Goal Percentage.'' \textit{Wikipedia}. Wikimedia Foundation, 8 Apr. 2024. \url{en.wikipedia.org/wiki/Effective_field_goal_percentage}.
+
+\bibitem{pgs_bar}
+Kelley, Kyle. ``How do I use updatable displays on colab?" \textit{Stack Overflow}, 25 Oct. 2017. \url{https://stackoverflow.com/questions/46939393/how-do-i-use-updatable-displays-on-colab}
+
+\bibitem{nbaglossary}
+``NBA Stat Glossary.'' \textit{Stat Glossary | Stats | NBA.Com}. \url{www.nba.com/stats/help/glossary#pie}. Accessed 10 May 2024.
+
+\bibitem{nbaapi}
+Patel, Swar. “Swar/NBA_API: An API Client Package to Access the Apis for Nba.Com.” GitHub, \url{github.com/swar/nba_api}. Accessed 12 May 2024.
+
+\bibitem{per}
+``Player Efficiency Rating.'' \textit{Wikipedia}. Wikimedia Foundation, 13 Mar. 2024. \url{en.wikipedia.org/wiki/Player_efficiency_rating}.
+
+\bibitem{tendex}
+``Tendex.'' \textit{Wikipedia}. Wikimedia Foundation, 30 Aug. 2020. \url{en.wikipedia.org/wiki/Tendex}.
+
+\bibitem{primer}
+Thunder, Oklahoma City. ``Statistical Analysis Primer.'' \textit{NBA.Com}, NBA, 19 Jan. 2005. \url{www.nba.com/thunder/news/stats101.html}.
+
+\bibitem{tsp}
+``True Shooting Percentage.'' \textit{Wikipedia}. Wikimedia Foundation, 5 Apr. 2024. \url{en.wikipedia.org/wiki/True_shooting_percentage}.
+
+\end{thebibliography}
+
+\end{document}
